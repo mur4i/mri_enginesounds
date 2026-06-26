@@ -1,0 +1,55 @@
+name: Release resource
+
+# Empacota o resource FiveM limpo (mri_enginesounds.zip) e publica num GitHub Release.
+# Dispara ao criar uma tag vX.Y.Z, ou manualmente informando a tag.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag do release (ex: v1.0.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Montar resource limpo
+        run: |
+          mkdir -p dist/mri_enginesounds
+          # so o que o FiveM precisa: manifesto, audioconfig, sfx (.awc), scripts
+          cp -r fxmanifest.lua audioconfig sfx \
+                client.lua server.lua dist/mri_enginesounds/
+          ( cd dist && zip -r -q ../mri_enginesounds.zip mri_enginesounds )
+          ls -lh mri_enginesounds.zip
+
+      - name: Determinar tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" mri_enginesounds.zip --clobber
+          else
+            gh release create "$TAG" mri_enginesounds.zip \
+              --title "MRI Engine Sounds $TAG" \
+              --notes "Resource FiveM limpo (drop-in). Extraia a pasta \`mri_enginesounds/\` para o seu \`resources/\` e adicione \`ensure mri_enginesounds\` no server.cfg."
+          fi

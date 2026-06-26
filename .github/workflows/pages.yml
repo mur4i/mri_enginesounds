@@ -1,0 +1,48 @@
+name: Deploy site (Pages)
+
+# Publica o conteudo de web/ no GitHub Pages.
+# Requer: Settings > Pages > Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "web/**"
+      - ".github/workflows/pages.yml"
+  # re-deploy depois que a CI gera/commita novos previews
+  # (push via GITHUB_TOKEN nao dispara 'push', entao usamos workflow_run)
+  workflow_run:
+    workflows: ["Build audio previews"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload do artefato (pasta web/)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

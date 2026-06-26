@@ -1,0 +1,15 @@
+# ferramentas locais / temporarios
+_tools/
+*.tmp
+mri_enginesounds.zip
+dist/
+
+# os .awc originais SAO versionados (resource/sfx) — nao ignorar
+
+# arquivo temporario do enriquecimento
+web/data/_enrichment.json
+
+# backup and dev tools
+web/enginelab/
+scratch/
+

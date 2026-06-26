@@ -1,0 +1,71 @@
+name: Build audio previews
+
+# Converte os .awc do FiveM-Engine-Sound-Pack em previews .ogg e commita no repo.
+# Roda manualmente (Actions > Build audio previews > Run) ou quando o catalogo muda.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "web/data/catalog.json"
+      - ".github/workflows/build-previews.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-previews
+  cancel-in-progress: false
+
+jobs:
+  previews:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (este repo)
+        uses: actions/checkout@v4
+
+      - name: Instalar ffmpeg + libs de audio
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libvorbis0a libvorbisenc2 libmpg123-0 \
+            libspeex1 libavformat60 libavcodec60 libavutil58 || \
+          sudo apt-get install -y ffmpeg libvorbis0a libmpg123-0 libspeex1
+
+      - name: Baixar vgmstream-cli (linux)
+        run: |
+          curl -sL -o vgmstream.zip \
+            https://github.com/vgmstream/vgmstream/releases/latest/download/vgmstream-linux.zip
+          mkdir -p vgmstream && unzip -o -q vgmstream.zip -d vgmstream
+          CLI=$(find vgmstream -name 'vgmstream-cli' -type f | head -1)
+          echo "VGM_CLI=$GITHUB_WORKSPACE/$CLI" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/$(dirname "$CLI")" >> "$GITHUB_ENV"
+          chmod +x "$CLI"
+          "$CLI" 2>&1 | head -2 || true
+
+      - name: Converter .awc -> .ogg
+        run: |
+          python3 web/scripts/convert_previews.py \
+            --vgmstream "$VGM_CLI" \
+            --sfx sfx
+
+      - name: Buscar imagens faltantes (DuckDuckGo)
+        continue-on-error: true  # best-effort; DDG pode limitar o IP do runner
+        run: |
+          pip install -q ddgs
+          python3 web/scripts/fetch_images.py --delay 1.2
+
+      - name: Commitar previews + imagens
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/previews/*.ogg web/images/*.webp web/data/catalog.json || true
+          if git diff --cached --quiet; then
+            echo "Nada novo."
+          else
+            git commit -m "ci: gerar previews + imagens automaticas"
+            # evita rejeicao se outro run avancou o branch
+            for i in 1 2 3; do
+              git pull --rebase origin master && git push && break
+              echo "retry push ($i)"; sleep 5
+            done
+          fi
