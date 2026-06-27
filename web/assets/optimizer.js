@@ -19,6 +19,11 @@ const STREAM_EXTENSIONS = new Set([
 ]);
 const JUNK_NAMES = new Set(["thumbs.db", ".ds_store", "desktop.ini"]);
 const JUNK_EXTENSIONS = new Set([".tmp", ".bak"]);
+const YTD_PROFILES = {
+  quality: { name: "Qualidade", maxDimension: 4096, maxMips: 13, quality: 2, generateMipmaps: true },
+  balanced: { name: "Balanceado", maxDimension: 2048, maxMips: 13, quality: 1, generateMipmaps: true },
+  fps: { name: "FPS", maxDimension: 1024, maxMips: 12, quality: 0, generateMipmaps: true },
+};
 
 const elements = {
   uploadPanel: document.getElementById("upload-panel"),
@@ -41,6 +46,8 @@ const elements = {
   fixesList: document.getElementById("fixes-list"),
   download: document.getElementById("download-optimized"),
   downloadNote: document.getElementById("download-note"),
+  ytdOptions: document.getElementById("ytd-optimization-options"),
+  ytdProfile: document.getElementById("ytd-profile"),
   ytdReport: document.getElementById("ytd-report"),
   ytdSummary: document.getElementById("ytd-summary"),
   ytdTextures: document.getElementById("ytd-textures"),
@@ -199,6 +206,7 @@ async function createSession(rawName, rawEntries, sourceBytes, sourceType) {
     manifestPath: "fxmanifest.lua",
     ytdReports: [],
     ytdFailures: [],
+    optimizableYtdPaths: new Set(),
     score: 0,
   };
   setStatus("Analisando manifesto, metas e assets…");
@@ -280,7 +288,7 @@ async function analyze(session) {
     addIssue("ok", "Assets GTA reconhecidos", allStreamLike.length + " arquivo(s) compilado(s) detectado(s).");
   }
 
-  await analyzeYtdContents(session, addIssue);
+  await analyzeYtdContents(session, addIssue, registerFix);
   const largeModels = session.entries.filter(function (entry) {
     return fileExtension(entry.path) === ".yft" && entry.size > 16 * 1024 * 1024;
   });
@@ -336,7 +344,7 @@ async function analyze(session) {
   session.score = Math.max(0, 100 - errors * 18 - warnings * 7 - info);
 }
 
-async function analyzeYtdContents(session, addIssue) {
+async function analyzeYtdContents(session, addIssue, registerFix) {
   const ytdEntries = session.entries.filter(function (entry) { return fileExtension(entry.path) === ".ytd"; });
   if (!ytdEntries.length) return;
 
@@ -384,7 +392,7 @@ async function analyzeYtdContents(session, addIssue) {
   }
   const uncompressed = textures.filter(function (texture) { return !texture.compressed && texture.dataBytes >= 512 * 1024; });
   if (uncompressed.length) {
-    addIssue("warning", "Texturas grandes sem compressão BC", summarizeTextures(uncompressed, "Serão candidatas a BC1, BC3 ou BC7 após validação do canal alpha"));
+    addIssue("warning", "Texturas grandes sem compressão BC", summarizeTextures(uncompressed, "O resize preserva o formato atual; conversão automática para BC exige validação adicional do canal alpha"));
   }
 
   const byHash = new Map();
@@ -405,6 +413,32 @@ async function analyzeYtdContents(session, addIssue) {
   if (session.ytdFailures.length) {
     addIssue("warning", "Alguns YTDs não puderam ser abertos", session.ytdFailures.length + " de " + ytdEntries.length + " arquivo(s). Primeiro caso: " + session.ytdFailures[0].path + " — " + session.ytdFailures[0].message);
   }
+
+  const balanced = YTD_PROFILES.balanced;
+  const fps = YTD_PROFILES.fps;
+  let balancedCandidates = 0;
+  let availableCandidates = 0;
+  session.ytdReports.forEach(function (report) {
+    if (report.generation !== "Legacy" || report.rejectedTextures) return;
+    const defaultItems = report.textures.filter(function (texture) { return isYtdOptimizationCandidate(texture, balanced); });
+    const allItems = report.textures.filter(function (texture) { return isYtdOptimizationCandidate(texture, fps); });
+    balancedCandidates += defaultItems.length;
+    availableCandidates += allItems.length;
+    if (allItems.length) {
+      session.optimizableYtdPaths.add(report.path);
+    }
+  });
+  if (availableCandidates) {
+    const description = balancedCandidates
+      ? balancedCandidates + " textura(s) no perfil Balanceado: resize, recompressão e mipmaps via WebAssembly."
+      : availableCandidates + " textura(s) disponíveis no perfil FPS; o Balanceado manterá estas resoluções.";
+    registerFix("optimize-ytd", "Otimizar texturas YTD", description);
+  }
+}
+
+function isYtdOptimizationCandidate(texture, profile) {
+  const largestSide = Math.max(texture.width, texture.height);
+  return largestSide > profile.maxDimension || (profile.generateMipmaps && texture.mipCount <= 1 && largestSide >= 512);
 }
 
 function inspectYtdInWorker(bytes) {
@@ -423,11 +457,28 @@ function inspectYtdInWorker(bytes) {
       error.code = "YTD_TIMEOUT";
       reject(error);
     }, 90000);
-    ytdRequests.set(id, { resolve: resolve, reject: reject, timeout: timeout });
+    ytdRequests.set(id, { resolve: resolve, reject: reject, timeout: timeout, kind: "inspect" });
     const buffer = bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
       ? bytes.buffer
       : bytes.slice().buffer;
-    worker.postMessage({ id: id, buffer: buffer, options: { hashTextures: true } }, [buffer]);
+    worker.postMessage({ id: id, operation: "inspect", buffer: buffer, options: { hashTextures: true } }, [buffer]);
+  });
+}
+
+function optimizeYtdInWorker(bytes, profile, onProgress) {
+  return new Promise(function (resolve, reject) {
+    const worker = getYtdWorker();
+    if (!worker) { reject(new Error("Web Workers não estão disponíveis neste navegador.")); return; }
+    const id = ++ytdRequestId;
+    const timeout = setTimeout(function () {
+      ytdRequests.delete(id);
+      const error = new Error("A otimização YTD excedeu 10 minutos.");
+      error.code = "YTD_OPTIMIZE_TIMEOUT";
+      reject(error);
+    }, 600000);
+    ytdRequests.set(id, { resolve: resolve, reject: reject, timeout: timeout, kind: "optimize", onProgress: onProgress });
+    const buffer = bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength ? bytes.buffer : bytes.slice().buffer;
+    worker.postMessage({ id: id, operation: "optimize", buffer: buffer, profile: profile }, [buffer]);
   });
 }
 
@@ -439,9 +490,13 @@ function getYtdWorker() {
     const message = event.data || {};
     const request = ytdRequests.get(message.id);
     if (!request) return;
+    if (message.progress) {
+      if (request.onProgress) request.onProgress(message.progress);
+      return;
+    }
     clearTimeout(request.timeout);
     ytdRequests.delete(message.id);
-    if (message.ok) request.resolve(message.report);
+    if (message.ok) request.resolve(request.kind === "optimize" ? message.result : message.report);
     else {
       const error = new Error(message.error && message.error.message ? message.error.message : "Falha ao analisar YTD.");
       error.code = message.error && message.error.code ? message.error.code : "YTD_PARSE_FAILED";
@@ -563,6 +618,7 @@ function renderAnalysis(session) {
   elements.metricScore.style.color = scoreColor(session.score);
   renderIssues(session.issues);
   renderFixes(session);
+  elements.ytdOptions.hidden = !session.fixes.has("optimize-ytd");
   renderYtdReport(session);
   elements.download.textContent = session.fixes.size ? "Gerar ZIP otimizado" : "Baixar cópia validada";
   elements.download.disabled = false;
@@ -718,6 +774,10 @@ async function generateOptimizedZip() {
     const output = new JSZip();
     const root = output.folder(safeResourceName(session.name) + "_optimized");
     let processed = 0;
+    let ytdOptimized = 0;
+    let ytdBeforeBytes = 0;
+    let ytdAfterBytes = 0;
+    const profile = YTD_PROFILES[elements.ytdProfile.value] || YTD_PROFILES.balanced;
     for (const entry of session.entries) {
       if (selectedFixes.has("remove-junk") && session.junkPaths.has(entry.path)) continue;
       let targetPath = entry.path;
@@ -727,6 +787,18 @@ async function generateOptimizedZip() {
         data = (await entry.readText()).replace(/\s+$/, "") + "\n" + session.manifestPatch;
       } else {
         data = await entry.readBytes();
+      }
+      if (selectedFixes.has("optimize-ytd") && session.optimizableYtdPaths.has(entry.path)) {
+        elements.download.textContent = "Otimizando " + baseName(entry.path) + "…";
+        const result = await optimizeYtdInWorker(data, profile, function (progress) {
+          elements.download.textContent = "Textura " + progress.current + "/" + progress.total + " · " + progress.name;
+        });
+        data = new Uint8Array(result.buffer);
+        if (result.changed) {
+          ytdOptimized += result.optimizedTextures;
+          ytdBeforeBytes += result.beforeTextureBytes;
+          ytdAfterBytes += result.afterTextureBytes;
+        }
       }
       root.file(targetPath, data);
       processed += 1;
@@ -750,11 +822,14 @@ async function generateOptimizedZip() {
     link.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
     elements.download.textContent = "✓ ZIP gerado";
-    elements.downloadNote.textContent = formatBytes(blob.size) + " gerados localmente. O original não foi alterado.";
+    const textureResult = ytdOptimized
+      ? " " + ytdOptimized + " textura(s): " + formatBytes(ytdBeforeBytes) + " → " + formatBytes(ytdAfterBytes) + "."
+      : "";
+    elements.downloadNote.textContent = formatBytes(blob.size) + " gerados localmente." + textureResult + " O original não foi alterado.";
   } catch (error) {
     console.error(error);
     elements.download.textContent = "Falha ao gerar ZIP";
-    elements.downloadNote.textContent = "O navegador pode ter ficado sem memória ou algum arquivo não pôde ser lido.";
+    elements.downloadNote.textContent = readableError(error, "O navegador pode ter ficado sem memória ou algum arquivo não pôde ser lido.") + " Nenhum arquivo original foi alterado.";
   }
   setTimeout(function () {
     if (!currentSession) return;
@@ -893,6 +968,7 @@ function resetOptimizer() {
   elements.fixesList.replaceChildren();
   elements.ytdTextures.replaceChildren();
   elements.ytdReport.hidden = true;
+  elements.ytdOptions.hidden = true;
   setStatus("");
   window.scrollTo({ top: elements.uploadPanel.offsetTop - 30, behavior: "smooth" });
 }

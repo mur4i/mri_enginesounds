@@ -76,12 +76,17 @@ cópia local do JSZip. Não existe endpoint de upload.
 As correções automáticas são conservadoras: manifesto ausente/incompleto,
 arquivos GTA fora de `stream/` e lixo temporário. O analisador abre o container
 RSC7 de cada `.ytd` em um Web Worker e identifica resolução, formato BC/DXGI,
-mipmaps, memória estimada e conteúdo duplicado. Os formatos compilados ainda
-são preservados sem regravação; o encoder WebAssembly será a próxima etapa.
+mipmaps, memória estimada e conteúdo duplicado. Para YTD Legacy totalmente
+reconhecido, o codec WebAssembly redimensiona texturas, recomprime BC1–BC7,
+gera mipmaps, compacta o segmento físico e reconstrói o container RSC7. YTD
+Enhanced/Gen9, YFT e formatos parcialmente reconhecidos permanecem somente
+leitura para evitar corrupção.
 
 A leitura YTD foi implementada a partir do layout público RSC7 e validada contra
 o comportamento do [EasyOptimizer-V](https://github.com/LN-Development/EasyOptimizer-V).
 Veja o aviso técnico e de licença em `web/vendor/EASYOPTIMIZER-NOTICE.md`.
+O código correspondente, a GPLv3 e o build reproduzível do WASM ficam em
+`web/wasm/`.
 
 ## Gerar os previews de áudio
 

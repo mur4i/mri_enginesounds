@@ -64,6 +64,15 @@
           <h3>Gerar resource otimizado</h3>
           <p>Marque o que deseja aplicar. O arquivo original permanece intacto.</p>
           <div id="fixes-list" class="fixes-list"></div>
+          <div id="ytd-optimization-options" class="ytd-optimization-options" hidden>
+            <label for="ytd-profile">Perfil das texturas</label>
+            <select id="ytd-profile">
+              <option value="quality">Qualidade · máximo 4K</option>
+              <option value="balanced" selected>Balanceado · máximo 2K</option>
+              <option value="fps">FPS · máximo 1K</option>
+            </select>
+            <small>Codec WebAssembly derivado do <a href="https://github.com/LN-Development/EasyOptimizer-V" target="_blank" rel="noopener">EasyOptimizer-V</a> · GPLv3</small>
+          </div>
           <button id="download-optimized" class="download-optimized" type="button">Gerar ZIP otimizado</button>
           <small id="download-note">As correções são aplicadas somente à cópia baixada.</small>
         </aside>
@@ -86,7 +95,7 @@
 
     <section class="optimizer-scope">
       <div><span>Verificamos</span><p>Manifesto, metas XML e o conteúdo real dos YTDs: resolução, formato, mipmaps, memória e texturas duplicadas.</p></div>
-      <div><span>Próxima etapa</span><p>O encoder WebAssembly fará resize, recompressão BC1/BC3/BC7 e geração de mipmaps. YFT e colisões permanecem somente leitura.</p></div>
+      <div><span>Otimização real</span><p>YTD Legacy pode receber resize, recompressão BC1–BC7, novos mipmaps e compactação RSC7. Gen9, YFT e colisões permanecem somente leitura.</p></div>
       <div><span>Proteção</span><p>ZIPs suspeitos, caminhos inseguros e arquivos excessivos são bloqueados antes da geração.</p></div>
     </section>
   </main>

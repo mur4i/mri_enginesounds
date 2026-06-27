@@ -316,6 +316,11 @@ a.feature-card:hover { transform: translateY(-3px); border-color: rgba(255,87,34
 .fix-option strong { display: block; font-size: 11px; }
 .fix-option small { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.45; }
 .no-fixes { padding: 14px 0; color: var(--green); font-size: 11px; border-top: 1px solid rgba(255,255,255,.06); }
+.ytd-optimization-options { margin: -4px 0 18px; padding: 12px; border: 1px solid rgba(255,87,34,.2); border-radius: 8px; background: rgba(255,87,34,.055); }
+.ytd-optimization-options label { display: block; margin-bottom: 7px; color: #dbe0e7; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ytd-optimization-options select { width: 100%; min-height: 36px; padding: 0 9px; border: 1px solid #3a424d; border-radius: 6px; color: #fff; background: #171b20; font: 700 10px/1 system-ui, sans-serif; }
+.ytd-optimization-options small { display: block; margin-top: 8px; color: #8b95a2; font-size: 8px; line-height: 1.4; }
+.ytd-optimization-options small a { color: var(--accent-2); }
 .download-optimized { width: 100%; min-height: 43px; border: 0; border-radius: 8px; color: #fff; background: var(--accent); font: 800 12px/1 system-ui, sans-serif; cursor: pointer; }
 .download-optimized:hover { filter: brightness(1.08); }
 .download-optimized:disabled { color: var(--muted); background: #29303a; cursor: wait; }
