@@ -26,9 +26,9 @@ jobs:
       - name: Montar resource limpo
         run: |
           mkdir -p dist/mri_enginesounds
-          # so o que o FiveM precisa: manifesto, audioconfig, sfx (.awc), scripts
-          cp -r fxmanifest.lua audioconfig sfx \
-                client.lua server.lua dist/mri_enginesounds/
+          # so o que o FiveM precisa: manifesto, audio compilado e scripts
+          cp -r resource/fxmanifest.lua resource/audio \
+                resource/client.lua resource/server.lua dist/mri_enginesounds/
           ( cd dist && zip -r -q ../mri_enginesounds.zip mri_enginesounds )
           ls -lh mri_enginesounds.zip
 

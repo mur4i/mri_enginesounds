@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Catálogo — MRI Engine Sounds</title>
+  <meta name="description" content="Catálogo e player dos sons de motor do MRI para FiveM." />
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body class="catalog-page">
+  <header class="topbar">
+    <a class="brand brand-link" href="index.html">
+      <span class="site-logo small" aria-hidden="true">M</span>
+      <div><h1>MRI Engine Sounds</h1><p class="sub">Catálogo de sons para FiveM</p></div>
+    </a>
+    <div class="controls">
+      <input id="search" type="search" placeholder="Buscar por nome, modelo, motor ou audioNameHash…" autocomplete="off" />
+      <div id="filter-selects" class="selects"></div>
+    </div>
+    <div class="catalog-actions">
+      <nav class="site-nav compact" aria-label="Navegação principal">
+        <a href="index.html">Início</a>
+        <a class="active" href="catalogo.html">Catálogo</a>
+        <a href="otimizador.html">Otimizador</a>
+      </nav>
+      <span class="stats"><span id="count">0</span> sons</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="warning-banner">
+      <div class="warning-icon">⚠️</div>
+      <div class="warning-content">
+        <h3>Limitação importante de sons addon</h3>
+        <p>O GTA V possui um limite técnico de <strong>180 sons de motor addon</strong> ativos ao mesmo tempo. Passar desse limite pode causar crash ou falhas no áudio.</p>
+        <p>Selecione nos cards apenas os sons que seu servidor realmente usa e gere um pacote customizado.</p>
+      </div>
+    </div>
+    <div id="grid" class="grid"></div>
+    <p id="empty" class="empty" hidden>Nenhum som encontrado.</p>
+  </main>
+
+  <footer class="footer">
+    <p>Copie o <code>audioNameHash</code> e use em <code>&lt;audioNameHash&gt;…&lt;/audioNameHash&gt;</code> no <code>vehicles.meta</code>.</p>
+    <p><a href="otimizador.html">Analisar um resource de veículo</a> &nbsp;·&nbsp; <a href="https://github.com/mur4i/mri_enginesounds/releases" target="_blank" rel="noopener">Releases</a></p>
+  </footer>
+
+  <div id="selection-bar" class="selection-bar" hidden>
+    <div class="sel-info"><span class="sel-count-badge" id="sel-count">0</span><span class="sel-text">sons selecionados <span class="sel-limit-text">(limite de 180)</span></span></div>
+    <div class="sel-actions"><button id="btn-clear-sel" class="sel-btn-clear">Limpar</button><button id="btn-download-pack" class="sel-btn-download">⬇ Baixar pacote (.zip)</button></div>
+  </div>
+
+  <div id="player-bar" class="player-bar" hidden>
+    <button id="pb-toggle" class="pb-btn" title="Tocar/Pausar">▶</button>
+    <div class="pb-info"><span id="pb-name" class="pb-name">—</span><span id="pb-hash" class="pb-hash"></span></div>
+    <input id="pb-seek" class="pb-seek" type="range" min="0" max="1000" value="0" step="1" />
+    <span id="pb-time" class="pb-time">0:00 / 0:00</span>
+    <button id="pb-close" class="pb-btn pb-close" title="Fechar player">✕</button>
+  </div>
+  <audio id="audio" preload="none"></audio>
+
+  <template id="card-tpl">
+    <article class="card">
+      <div class="card-select-wrap" title="Selecionar para o pacote customizado"><input type="checkbox" class="card-select" /></div>
+      <button class="thumb" title="Tocar preview"></button>
+      <div class="body">
+        <h3 class="name"></h3><p class="sub-model"></p><div class="meta"></div>
+        <button class="hash" title="Clique para copiar o audioNameHash"></button>
+        <div class="row">
+          <button class="play-btn" title="Tocar preview"><span class="ico">▶</span><span class="lbl">Tocar</span></button>
+          <button class="dl-btn" title="Baixar resource FiveM só deste som">⬇ Resource</button>
+          <a class="source" target="_blank" rel="noopener" title="Fonte original">Fonte ↗</a>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

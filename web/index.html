@@ -3,114 +3,102 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MRI Engine Sounds</title>
-  <meta name="description" content="Catálogo e player dos sons de motor (engine sounds) do MRI para FiveM." />
+  <title>MRI Engine Sounds — sons e ferramentas para FiveM</title>
+  <meta name="description" content="Catálogo de sons de motor e ferramentas locais para resources de veículos FiveM." />
   <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/site.css" />
 </head>
-<body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="logo">🔊</span>
-      <div>
-        <h1>MRI Engine Sounds</h1>
-        <p class="sub">Catálogo &amp; player dos sons de motor para FiveM</p>
-      </div>
-    </div>
-    <div class="controls">
-      <input id="search" type="search" placeholder="Buscar por nome, modelo, motor ou audioNameHash…" autocomplete="off" />
-      <div id="filter-selects" class="selects"></div>
-    </div>
-    <div class="actions">
-      <span class="stats"><span id="count">0</span> sons</span>
-      <a class="github-button" href="https://github.com/mur4i/mri_enginesounds"
-         data-color-scheme="dark" data-icon="octicon-star" data-size="large" data-show-count="true"
-         aria-label="Star mur4i/mri_enginesounds on GitHub">Star</a>
-      <a class="repo-link" href="https://github.com/mur4i/mri_enginesounds" target="_blank" rel="noopener" title="Abrir o repositório no GitHub">
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-        <span>GitHub</span>
-      </a>
-    </div>
+<body class="landing-page">
+  <header class="site-header">
+    <a class="site-brand" href="index.html" aria-label="MRI Engine Sounds — início">
+      <span class="site-logo" aria-hidden="true">M</span>
+      <span><strong>MRI Engine Sounds</strong><small>FiveM toolkit</small></span>
+    </a>
+    <nav class="site-nav" aria-label="Navegação principal">
+      <a class="active" href="index.html">Início</a>
+      <a href="catalogo.html">Catálogo</a>
+      <a href="otimizador.html">Otimizador</a>
+      <a href="https://github.com/mur4i/mri_enginesounds" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
   </header>
 
-  <main>
-    <div class="warning-banner">
-      <div class="warning-icon">⚠️</div>
-      <div class="warning-content">
-        <h3>Limitação Importante de Sons Addon (GTA V / FiveM)</h3>
-        <p>O GTA V possui um limite técnico de <strong>180 sons de motor addon</strong> ativos ao mesmo tempo. Passar desse limite pode fazer o jogo crashar ou apresentar falhas no áudio (sons sumindo).</p>
-        <p>Use os seletores nos cards abaixo para criar um único pacote customizado e otimizado contendo apenas os sons que você realmente precisa usar em seu servidor.</p>
-      </div>
-    </div>
-
-    <div id="grid" class="grid"></div>
-    <p id="empty" class="empty" hidden>Nenhum som encontrado.</p>
-  </main>
-
-  <footer class="footer">
-    <p>
-      Para usar um som: copie o <code>audioNameHash</code> e cole no
-      <code>&lt;audioNameHash&gt;…&lt;/audioNameHash&gt;</code> do <code>vehicles.meta</code> do veículo.
-    </p>
-    <p>
-      📦 <a href="https://github.com/mur4i/mri_enginesounds/releases" target="_blank" rel="noopener">Baixar o resource FiveM (release)</a>
-      &nbsp;·&nbsp;
-      <a href="https://github.com/mur4i/mri_enginesounds" target="_blank" rel="noopener">Repositório</a>
-    </p>
-    <p class="muted">Previews convertidos dos arquivos <code>.awc</code> originais. Quando um preview não existe, use o link da fonte.</p>
-    <p class="views-line">
-      <img class="views-badge" src="https://visitor-badge.laobi.icu/badge?page_id=mur4i.mri_enginesounds&left_text=visualiza%C3%A7%C3%B5es&left_color=%231c2128&right_color=%23ff5722" alt="contador de visualizações" loading="lazy" />
-    </p>
-  </footer>
-
-  <!-- Barra de seleção fixa/flutuante (pacote customizado) -->
-  <div id="selection-bar" class="selection-bar" hidden>
-    <div class="sel-info">
-      <span class="sel-count-badge" id="sel-count">0</span>
-      <span class="sel-text">sons selecionados <span class="sel-limit-text">(limite de 180)</span></span>
-    </div>
-    <div class="sel-actions">
-      <button id="btn-clear-sel" class="sel-btn-clear" title="Limpar todos selecionados">Limpar</button>
-      <button id="btn-download-pack" class="sel-btn-download" title="Baixar pacote com os sons selecionados">⬇ Baixar Pacote (.zip)</button>
-    </div>
-  </div>
-
-  <!-- Barra de player fixa (um som por vez) -->
-  <div id="player-bar" class="player-bar" hidden>
-    <button id="pb-toggle" class="pb-btn" title="Tocar/Pausar">▶</button>
-    <div class="pb-info">
-      <span id="pb-name" class="pb-name">—</span>
-      <span id="pb-hash" class="pb-hash"></span>
-    </div>
-    <input id="pb-seek" class="pb-seek" type="range" min="0" max="1000" value="0" step="1" />
-    <span id="pb-time" class="pb-time">0:00 / 0:00</span>
-    <button id="pb-close" class="pb-btn pb-close" title="Fechar player">✕</button>
-  </div>
-  <audio id="audio" preload="none"></audio>
-
-  <template id="card-tpl">
-    <article class="card">
-      <div class="card-select-wrap" title="Selecionar para o pacote customizado">
-        <input type="checkbox" class="card-select" />
-      </div>
-      <button class="thumb" title="Tocar preview"></button>
-      <div class="body">
-        <h3 class="name"></h3>
-        <p class="sub-model"></p>
-        <div class="meta"></div>
-        <button class="hash" title="Clique para copiar o audioNameHash"></button>
-        <div class="row">
-          <button class="play-btn" title="Tocar preview"><span class="ico">▶</span><span class="lbl">Tocar</span></button>
-          <button class="dl-btn" title="Baixar resource FiveM só deste som">⬇ Resource</button>
-          <a class="source" target="_blank" rel="noopener" title="Fonte original">Fonte ↗</a>
+  <main class="landing-main">
+    <section class="hero-section">
+      <div class="hero-copy">
+        <p class="eyebrow"><span></span> Ferramentas abertas para FiveM</p>
+        <h1>O som certo.<br /><em>O resource mais limpo.</em></h1>
+        <p class="hero-lead">
+          Explore sons de motor prontos para uso e analise o resource do seu veículo
+          diretamente no navegador. Sem upload, sem fila e sem o arquivo sair do seu computador.
+        </p>
+        <div class="hero-actions">
+          <a class="primary-cta" href="catalogo.html">Explorar catálogo <span>→</span></a>
+          <a class="secondary-cta" href="otimizador.html">Otimizar um veículo</a>
+        </div>
+        <div class="trust-line" aria-label="Características">
+          <span>✓ Gratuito</span>
+          <span>✓ Sem cadastro</span>
+          <span>✓ Processamento local</span>
         </div>
       </div>
-    </article>
-  </template>
 
-  <!-- Star button do GitHub -->
-  <script async defer src="https://buttons.github.io/buttons.js"></script>
-  <!-- JSZip: gerar o resource de um som no proprio navegador -->
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="assets/app.js"></script>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="engine-orbit orbit-one"></div>
+        <div class="engine-orbit orbit-two"></div>
+        <div class="engine-core">
+          <span class="wave wave-a"></span>
+          <span class="wave wave-b"></span>
+          <span class="wave wave-c"></span>
+          <strong>V8</strong>
+          <small>ENGINE AUDIO</small>
+        </div>
+        <div class="floating-card card-a"><small>CATÁLOGO</small><strong id="home-sound-count">224</strong><span>sons disponíveis</span></div>
+        <div class="floating-card card-b"><small>PRIVACIDADE</small><strong>100%</strong><span>no seu navegador</span></div>
+      </div>
+    </section>
+
+    <section class="feature-grid" aria-label="Ferramentas">
+      <a class="feature-card feature-catalog" href="catalogo.html">
+        <span class="feature-number">01</span>
+        <div class="feature-icon" aria-hidden="true">◖)))</div>
+        <h2>Catálogo de sons</h2>
+        <p>Busque por marca, motor ou modelo, ouça o preview e copie o <code>audioNameHash</code>.</p>
+        <span class="feature-link">Abrir catálogo →</span>
+      </a>
+
+      <a class="feature-card feature-optimizer" href="otimizador.html">
+        <span class="feature-number">02</span>
+        <div class="feature-icon" aria-hidden="true">◇</div>
+        <h2>Otimizador local</h2>
+        <p>Valide metas, manifesto, estrutura e peso do resource sem enviar o veículo para nenhum servidor.</p>
+        <span class="feature-link">Analisar resource →</span>
+      </a>
+
+      <article class="feature-card feature-guide">
+        <span class="feature-number">03</span>
+        <div class="feature-icon" aria-hidden="true">{ }</div>
+        <h2>Feito para resources</h2>
+        <p>Relatórios objetivos sobre <code>vehicles.meta</code>, <code>handling.meta</code>, stream e nomes incompatíveis.</p>
+        <span class="feature-link muted-link">Mais ferramentas em breve</span>
+      </article>
+    </section>
+
+    <section class="privacy-strip">
+      <div class="privacy-mark" aria-hidden="true">⌾</div>
+      <div>
+        <p class="eyebrow">Privacidade por arquitetura</p>
+        <h2>Seu carro nunca vira upload.</h2>
+      </div>
+      <p>O navegador abre, analisa e recria o ZIP localmente. Não existe API de upload nem armazenamento do arquivo.</p>
+      <a href="otimizador.html">Ver como funciona →</a>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>MRI Engine Sounds</span>
+    <span>Ferramentas comunitárias para FiveM.</span>
+  </footer>
+
+  <script src="assets/home.js"></script>
 </body>
 </html>

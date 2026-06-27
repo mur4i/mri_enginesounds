@@ -16,22 +16,23 @@ e copiar o `audioNameHash` pra colar no `vehicles.meta` do veículo.
 
 ## Estrutura
 
-O repositório **é, ao mesmo tempo, o resource FiveM e o site**:
-na **raiz** ficam os arquivos do resource (FiveM carrega `ensure mri_enginesounds`);
-em **`web/`** fica o site, publicado no GitHub Pages via workflow.
+O repositório guarda dois produtos: o resource FiveM em **`resource/`** e o
+site estático em **`web/`**, publicado no GitHub Pages via workflow.
 
 | Pasta / arquivo | O que é |
 | --- | --- |
-| `fxmanifest.lua` | Manifesto do **resource FiveM** (declara os áudios). Na raiz. |
-| `audioconfig/` | Configs de áudio compiladas (`.rel`). |
-| `sfx/` | Áudios originais `.awc` (`dlc_<hash>/`). |
-| `client.lua`, `server.lua` | Scripts do resource (comando `/changesound`). |
-| `web/index.html`, `web/assets/` | O site estático (HTML/CSS/JS puro, sem build) — GitHub Pages. |
+| `resource/fxmanifest.lua` | Manifesto do **resource FiveM** (declara os áudios). |
+| `resource/audio/<hash>/` | Configs `.rel` e áudios `.awc` de cada som. |
+| `resource/client.lua`, `resource/server.lua` | Scripts do resource (comando `/changesound`). |
+| `web/index.html` | Página inicial do site. |
+| `web/catalogo.html` | Catálogo, player e gerador de pacotes de som. |
+| `web/otimizador.html` | Analisador/otimizador local de resources de veículos. |
+| `web/assets/` | CSS e JavaScript do site, sem etapa de build. |
 | `web/data/catalog.json` | Catálogo dos sons (nome, hash, tipo de motor, autor, fonte). |
 | `web/images/` | Capas dos sons (`.webp`). |
 | `web/previews/` | Previews de áudio tocáveis no navegador (`<hash>.ogg`). |
 | `web/scripts/build_catalog.py` | Gera `web/data/catalog.json` a partir do README do pack de origem. |
-| `web/scripts/convert_previews.py` | Converte os `.awc` de `sfx/` em previews `.ogg`. |
+| `web/scripts/convert_previews.py` | Converte os `.awc` de `resource/audio/` em previews `.ogg`. |
 | `web/scripts/integrate_packs.py` | Mescla sons de outros packs ao resource + catálogo (sem duplicar). |
 
 > **Pages:** publicado pelo workflow `Deploy site (Pages)` a partir de `web/`.
@@ -62,6 +63,19 @@ git push origin v1.0.0
 ```bash
 python web/scripts/build_catalog.py
 ```
+
+> Esse script recria o catálogo a partir do pack de origem. Preserve/mescle os
+> metadados enriquecidos antes de usá-lo sobre o catálogo publicado.
+
+## Otimizador local de veículos
+
+A página `web/otimizador.html` aceita um ZIP ou uma pasta de resource. A leitura,
+a análise e a geração do novo ZIP acontecem no navegador com a File API e uma
+cópia local do JSZip. Não existe endpoint de upload.
+
+As correções automáticas são conservadoras: manifesto ausente/incompleto,
+arquivos GTA fora de `stream/` e lixo temporário. Modelos `.yft`, texturas `.ytd`
+e outros formatos compilados são apenas diagnosticados, nunca regravados.
 
 ## Gerar os previews de áudio
 

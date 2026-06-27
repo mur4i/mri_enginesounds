@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Otimizador local — MRI Engine Sounds</title>
+  <meta name="description" content="Analise e organize um resource de veículo FiveM localmente, sem upload." />
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body class="optimizer-page">
+  <header class="site-header">
+    <a class="site-brand" href="index.html"><span class="site-logo" aria-hidden="true">M</span><span><strong>MRI Engine Sounds</strong><small>FiveM toolkit</small></span></a>
+    <nav class="site-nav" aria-label="Navegação principal">
+      <a href="index.html">Início</a><a href="catalogo.html">Catálogo</a><a class="active" href="otimizador.html">Otimizador</a><a href="https://github.com/mur4i/mri_enginesounds" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
+  </header>
+
+  <main class="optimizer-main">
+    <section class="optimizer-intro">
+      <p class="eyebrow"><span></span> Analisador local de resources</p>
+      <h1>Seu veículo, mais organizado.<br /><em>Sem sair do seu PC.</em></h1>
+      <p>Abra um ZIP ou uma pasta. Nós verificamos a estrutura, os metas, o manifesto e o peso dos assets. Você escolhe cada correção antes de gerar um novo ZIP.</p>
+      <div class="local-proof"><strong>● Processamento local</strong><span>Este site não possui endpoint de upload.</span></div>
+    </section>
+
+    <section id="upload-panel" class="upload-panel">
+      <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Selecionar ZIP de resource FiveM">
+        <div class="drop-icon" aria-hidden="true">⇧</div>
+        <h2>Solte o ZIP do veículo aqui</h2>
+        <p>ou escolha como deseja abrir o resource</p>
+        <div class="upload-actions">
+          <button id="choose-zip" class="primary-cta" type="button">Escolher arquivo .zip</button>
+          <button id="choose-folder" class="secondary-cta" type="button">Escolher pasta</button>
+        </div>
+        <small>Até 600 MB · máximo de 2.500 arquivos · nada será enviado</small>
+      </div>
+      <input id="zip-input" type="file" accept=".zip,application/zip" hidden />
+      <input id="folder-input" type="file" webkitdirectory multiple hidden />
+      <p id="optimizer-status" class="optimizer-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="analysis-panel" class="analysis-panel" hidden>
+      <div class="analysis-heading">
+        <div><p class="eyebrow">Relatório local</p><h2 id="resource-name">Resource analisado</h2></div>
+        <button id="reset-optimizer" class="text-button" type="button">Analisar outro</button>
+      </div>
+
+      <div class="metric-grid">
+        <article><span>Arquivos</span><strong id="metric-files">0</strong><small>no resource</small></article>
+        <article><span>Tamanho</span><strong id="metric-size">0 MB</strong><small>descompactado</small></article>
+        <article><span>Stream</span><strong id="metric-stream">0 MB</strong><small>assets do veículo</small></article>
+        <article class="score-card"><span>Saúde</span><strong id="metric-score">—</strong><small id="score-label">aguardando</small></article>
+      </div>
+
+      <div class="analysis-layout">
+        <section class="report-card">
+          <div class="card-heading"><div><p class="eyebrow">Diagnóstico</p><h3>O que encontramos</h3></div><div id="issue-summary" class="issue-summary"></div></div>
+          <div id="issues-list" class="issues-list"></div>
+        </section>
+
+        <aside class="fix-card">
+          <p class="eyebrow">Correções seguras</p>
+          <h3>Gerar resource otimizado</h3>
+          <p>Marque o que deseja aplicar. O arquivo original permanece intacto.</p>
+          <div id="fixes-list" class="fixes-list"></div>
+          <button id="download-optimized" class="download-optimized" type="button">Gerar ZIP otimizado</button>
+          <small id="download-note">As correções são aplicadas somente à cópia baixada.</small>
+        </aside>
+      </div>
+    </section>
+
+    <section class="optimizer-scope">
+      <div><span>Verificamos</span><p>Manifesto, metas XML, referências, estrutura, nomes, duplicatas e tamanho dos assets.</p></div>
+      <div><span>Não alteramos automaticamente</span><p>Geometria de `.yft`, conteúdo de `.ytd`, colisões ou áudio compilado.</p></div>
+      <div><span>Proteção</span><p>ZIPs suspeitos, caminhos inseguros e arquivos excessivos são bloqueados antes da geração.</p></div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><span>MRI Engine Sounds</span><span>O resultado depende da estrutura do resource enviado.</span></footer>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="assets/optimizer.js"></script>
+</body>
+</html>

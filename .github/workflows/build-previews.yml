@@ -46,7 +46,7 @@ jobs:
         run: |
           python3 web/scripts/convert_previews.py \
             --vgmstream "$VGM_CLI" \
-            --sfx sfx
+            --sfx resource/audio
 
       - name: Buscar imagens faltantes (DuckDuckGo)
         continue-on-error: true  # best-effort; DDG pode limitar o IP do runner

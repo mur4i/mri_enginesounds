@@ -459,11 +459,11 @@ function updateSelectionBar() {
   els.selCount.textContent = count;
   
   const badge = els.selCount;
-  if (count >= 180) {
+  if (count > 180) {
     badge.className = "sel-count-badge limit-warning";
     els.btnDownloadPack.disabled = true;
-    els.btnDownloadPack.title = "Limite de 180 sons addon atingido! Desmarque alguns.";
-  } else if (count > 150) {
+    els.btnDownloadPack.title = "O limite é de 180 sons addon. Desmarque alguns.";
+  } else if (count >= 150) {
     badge.className = "sel-count-badge limit-warning";
     els.btnDownloadPack.disabled = false;
     els.btnDownloadPack.title = "Baixar pacote customizado (Aproximando-se do limite de 180)";
@@ -550,6 +550,7 @@ async function downloadSelectedPack(btn) {
     const root = zip.folder("custom_enginesounds");
     
     const ampHashingMap = {};
+    const includedHashes = [];
     let count = 0;
     const total = hashes.length;
     
@@ -590,6 +591,7 @@ async function downloadSelectedPack(btn) {
       }
       
       count++;
+      includedHashes.push(h);
     }
     
     if (count === 0) {
@@ -600,8 +602,8 @@ async function downloadSelectedPack(btn) {
     
     btn.textContent = "⏳ Baixando scripts…";
     const [clientLua, serverLua] = await Promise.all([
-      rawFile("client.lua"),
-      rawFile("server.lua")
+      rawFile("resource/client.lua"),
+      rawFile("resource/server.lua")
     ]);
     
     const includeScripts = !!clientLua && !!serverLua;
@@ -609,7 +611,7 @@ async function downloadSelectedPack(btn) {
     if (serverLua) root.file("server.lua", serverLua);
     
     btn.textContent = "📦 Compactando zip…";
-    root.file("fxmanifest.lua", manifestForMultiple(hashes, ampHashingMap, includeScripts));
+    root.file("fxmanifest.lua", manifestForMultiple(includedHashes, ampHashingMap, includeScripts));
     
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
