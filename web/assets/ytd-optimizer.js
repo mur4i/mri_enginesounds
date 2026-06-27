@@ -139,6 +139,30 @@
     return result;
   }
 
+  // chave rápida (FNV-1a + tamanho) p/ agrupar candidatos a dedup; igualdade confirmada byte a byte.
+  function bytesKey(data) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < data.length; i += 1) { h ^= data[i]; h = Math.imul(h, 0x01000193); }
+    return (h >>> 0) + ":" + data.length;
+  }
+  function bytesEqual(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) { if (a[i] !== b[i]) return false; }
+    return true;
+  }
+  function hasSourceDuplicates(model) {
+    const seen = new Map();
+    for (let i = 0; i < model.textures.length; i += 1) {
+      const t = model.textures[i];
+      const data = model.graphics.subarray(t.dataOffset, t.dataOffset + t.dataBytes);
+      const key = bytesKey(data);
+      const bucket = seen.get(key);
+      if (bucket) { for (let b = 0; b < bucket.length; b += 1) { if (bytesEqual(bucket[b], data)) return true; } bucket.push(data); }
+      else seen.set(key, [data]);
+    }
+    return false;
+  }
+
   async function optimize(input, profile, onProgress) {
     if (!root.MRIYtdParser) throw optimizerError("NO_YTD_PARSER", "O leitor YTD não foi carregado.");
     const model = await root.MRIYtdParser.open(input);
@@ -147,7 +171,8 @@
       throw optimizerError("PARTIAL_PARSE", "O YTD contém texturas desconhecidas e foi preservado para evitar corrupção.");
     }
     const candidates = model.textures.filter(function (texture) { return shouldOptimize(texture, profile); });
-    if (!candidates.length) {
+    const hasDuplicates = hasSourceDuplicates(model);
+    if (!candidates.length && !hasDuplicates) {
       return { buffer: model.source.slice().buffer, changed: false, optimizedTextures: 0, beforeBytes: model.source.byteLength, afterBytes: model.source.byteLength };
     }
 
@@ -160,7 +185,7 @@
       const replacement = optimizeTexture(codec, texture, source, profile);
       if (replacement) replacements.set(texture.index, replacement);
     }
-    if (!replacements.size) {
+    if (!replacements.size && !hasDuplicates) {
       return { buffer: model.source.slice().buffer, changed: false, optimizedTextures: 0, beforeBytes: model.source.byteLength, afterBytes: model.source.byteLength };
     }
 
@@ -175,20 +200,35 @@
         codecFormat: texture.codecFormat,
       };
     });
-    const usedGraphicsBytes = textureData.reduce(function (sum, item) { return sum + item.data.byteLength; }, 0);
+    // Dedup seguro DENTRO do YTD: texturas com dados byte-idênticos apontam para
+    // o mesmo bloco gráfico (nomes preservados; o dado é escrito uma única vez).
+    const dataOffsets = new Array(model.textures.length);
+    const dedupSeen = [];
+    let uniqueBytes = 0, dedupSaved = 0, dedupCount = 0;
+    textureData.forEach(function (item, index) {
+      const key = bytesKey(item.data);
+      let offset = -1;
+      for (let s = 0; s < dedupSeen.length; s += 1) {
+        if (dedupSeen[s].key === key && bytesEqual(dedupSeen[s].data, item.data)) { offset = dedupSeen[s].offset; break; }
+      }
+      if (offset >= 0) { dataOffsets[index] = offset; dedupSaved += item.data.byteLength; dedupCount += 1; }
+      else { dataOffsets[index] = uniqueBytes; dedupSeen.push({ key: key, offset: uniqueBytes, data: item.data }); uniqueBytes += item.data.byteLength; }
+    });
+    const usedGraphicsBytes = uniqueBytes;
     const versionNibble = model.graphicsFlags >>> 28;
     const graphicsFlags = root.MRIYtdParser.flagsForSize(usedGraphicsBytes, versionNibble);
     const graphicsTargetBytes = root.MRIYtdParser.segmentSize(graphicsFlags);
     const payload = new Uint8Array(model.systemBytes + graphicsTargetBytes);
     payload.set(model.system, 0);
     const systemView = new DataView(payload.buffer, 0, model.systemBytes);
-    let graphicsCursor = 0;
+    const writtenOffsets = new Set();
     let formatDowngrades = 0;
     let resizes = 0;
     model.textures.forEach(function (texture, index) {
       const item = textureData[index];
       const outFormat = typeof item.codecFormat === "number" ? item.codecFormat : texture.codecFormat;
-      payload.set(item.data, model.systemBytes + graphicsCursor);
+      const offset = dataOffsets[index];
+      if (!writtenOffsets.has(offset)) { payload.set(item.data, model.systemBytes + offset); writtenOffsets.add(offset); }
       const structure = texture.structureOffset;
       systemView.setUint32(structure + 0x40, largeMipBytes(item.width, item.height, outFormat, item.mipCount), true);
       systemView.setUint16(structure + 0x50, item.width, true);
@@ -201,8 +241,7 @@
         formatDowngrades += 1;
       }
       if (item.width < texture.width || item.height < texture.height) resizes += 1;
-      systemView.setBigUint64(structure + 0x70, PHYSICAL_BASE + BigInt(graphicsCursor), true);
-      graphicsCursor += item.data.byteLength;
+      systemView.setBigUint64(structure + 0x70, PHYSICAL_BASE + BigInt(offset), true);
     });
 
     const compressed = await compressRaw(payload);
@@ -223,6 +262,8 @@
       afterTextureBytes: usedGraphicsBytes,
       formatDowngrades: formatDowngrades,
       resizes: resizes,
+      dedupedTextures: dedupCount,
+      dedupedBytes: dedupSaved,
     };
   }
 

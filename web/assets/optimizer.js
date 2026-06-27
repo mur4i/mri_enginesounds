@@ -421,7 +421,7 @@ async function analyzeYtdContents(session, addIssue, registerFix) {
   if (duplicates.length) {
     const duplicateCopies = duplicates.reduce(function (sum, group) { return sum + group.length - 1; }, 0);
     const duplicateBytes = duplicates.reduce(function (sum, group) { return sum + group[0].dataBytes * (group.length - 1); }, 0);
-    addIssue("info", "Texturas binariamente duplicadas", duplicateCopies + " cópia(s) ocupam " + formatBytes(duplicateBytes) + ". A remoção só será automatizada quando pudermos validar as referências entre dicionários.");
+    addIssue("info", "Texturas binariamente duplicadas", duplicateCopies + " cópia(s) ocupam " + formatBytes(duplicateBytes) + ". Duplicatas dentro de um mesmo YTD são consolidadas ao otimizar (passam a compartilhar o dado, sem risco). Duplicatas entre YTDs diferentes são preservadas — mover para vehshare exigiria reescrever as referências dos modelos.");
   }
 
   const rejected = session.ytdReports.reduce(function (sum, report) { return sum + report.rejectedTextures; }, 0);
@@ -799,6 +799,7 @@ async function generateOptimizedZip() {
     let ytdAfterBytes = 0;
     let ytdDowngrades = 0;
     let ytdResizes = 0;
+    let ytdDeduped = 0;
     const profile = YTD_PROFILES[elements.ytdProfile.value] || YTD_PROFILES.balanced;
     for (const entry of session.entries) {
       if (selectedFixes.has("remove-junk") && session.junkPaths.has(entry.path)) continue;
@@ -822,6 +823,7 @@ async function generateOptimizedZip() {
           ytdAfterBytes += result.afterTextureBytes;
           ytdDowngrades += result.formatDowngrades || 0;
           ytdResizes += result.resizes || 0;
+          ytdDeduped += result.dedupedTextures || 0;
         }
       }
       root.file(targetPath, data);
@@ -847,15 +849,16 @@ async function generateOptimizedZip() {
     setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
     elements.download.textContent = "✓ ZIP gerado";
     let textureResult = "";
-    if (ytdOptimized) {
+    if (ytdOptimized || ytdDeduped) {
       const parts = [];
       if (ytdResizes) parts.push(ytdResizes + " redimensionada(s)");
       if (ytdDowngrades) parts.push(ytdDowngrades + " convertida(s) p/ BC1");
-      const breakdown = parts.length ? " (" + parts.join(", ") + ")" : "";
+      if (ytdDeduped) parts.push(ytdDeduped + " duplicata(s) consolidada(s)");
+      const breakdown = parts.length ? parts.join(", ") : ytdOptimized + " textura(s)";
       const vramDelta = ytdAfterBytes <= ytdBeforeBytes
         ? "VRAM " + formatBytes(ytdBeforeBytes) + " → " + formatBytes(ytdAfterBytes)
         : "VRAM " + formatBytes(ytdBeforeBytes) + " → " + formatBytes(ytdAfterBytes) + " (mipmaps adicionados melhoram a GPU)";
-      textureResult = " " + ytdOptimized + " textura(s)" + breakdown + " · " + vramDelta + ".";
+      textureResult = " " + breakdown + " · " + vramDelta + ".";
     }
     elements.downloadNote.textContent = formatBytes(blob.size) + " no disco." + textureResult + " O original não foi alterado.";
   } catch (error) {
