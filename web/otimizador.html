@@ -68,11 +68,25 @@
           <small id="download-note">As correções são aplicadas somente à cópia baixada.</small>
         </aside>
       </div>
+
+      <section id="ytd-report" class="ytd-report" hidden>
+        <div class="card-heading">
+          <div><p class="eyebrow">Leitura interna RSC7</p><h3>Texturas dentro dos YTDs</h3></div>
+          <div id="ytd-summary" class="ytd-summary"></div>
+        </div>
+        <div class="texture-table-wrap">
+          <table class="texture-table">
+            <thead><tr><th>Arquivo / textura</th><th>Resolução</th><th>Formato</th><th>Mips</th><th>Memória</th><th>Diagnóstico</th></tr></thead>
+            <tbody id="ytd-textures"></tbody>
+          </table>
+        </div>
+        <p id="ytd-table-note" class="ytd-table-note"></p>
+      </section>
     </section>
 
     <section class="optimizer-scope">
-      <div><span>Verificamos</span><p>Manifesto, metas XML, referências, estrutura, nomes, duplicatas e tamanho dos assets.</p></div>
-      <div><span>Não alteramos automaticamente</span><p>Geometria de `.yft`, conteúdo de `.ytd`, colisões ou áudio compilado.</p></div>
+      <div><span>Verificamos</span><p>Manifesto, metas XML e o conteúdo real dos YTDs: resolução, formato, mipmaps, memória e texturas duplicadas.</p></div>
+      <div><span>Próxima etapa</span><p>O encoder WebAssembly fará resize, recompressão BC1/BC3/BC7 e geração de mipmaps. YFT e colisões permanecem somente leitura.</p></div>
       <div><span>Proteção</span><p>ZIPs suspeitos, caminhos inseguros e arquivos excessivos são bloqueados antes da geração.</p></div>
     </section>
   </main>

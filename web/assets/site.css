@@ -321,6 +321,27 @@ a.feature-card:hover { transform: translateY(-3px); border-color: rgba(255,87,34
 .download-optimized:disabled { color: var(--muted); background: #29303a; cursor: wait; }
 .fix-card > small { display: block; margin-top: 10px; color: #697381; font-size: 9px; text-align: center; line-height: 1.5; }
 
+.ytd-report { margin-top: 16px; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+.ytd-summary { display: flex; gap: 8px; }
+.ytd-summary > span { min-width: 68px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.07); border-radius: 8px; text-align: right; }
+.ytd-summary strong, .ytd-summary small { display: block; }
+.ytd-summary strong { color: #fff; font-size: 12px; }
+.ytd-summary small { margin-top: 2px; color: var(--muted); font-size: 7px; letter-spacing: .1em; text-transform: uppercase; }
+.texture-table-wrap { max-height: 620px; overflow: auto; }
+.texture-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.texture-table th { position: sticky; top: 0; z-index: 1; padding: 10px 14px; color: #798492; background: #15191e; font-size: 8px; letter-spacing: .1em; text-align: left; text-transform: uppercase; }
+.texture-table td { padding: 11px 14px; border-top: 1px solid rgba(255,255,255,.05); color: #bec6d1; white-space: nowrap; }
+.texture-table td:first-child { width: 44%; white-space: normal; }
+.texture-table td strong, .texture-table td small { display: block; }
+.texture-table td strong { color: #e6eaf0; font-size: 10px; overflow-wrap: anywhere; }
+.texture-table td small { margin-top: 3px; color: #67717e; font-size: 8px; overflow-wrap: anywhere; }
+.texture-table td.uncompressed { color: var(--yellow); }
+.texture-status { display: inline-block; padding: 4px 7px; border-radius: 999px; font-size: 8px; font-weight: 800; }
+.texture-status.ok { color: var(--green); background: rgba(87,211,140,.1); }
+.texture-status.warning { color: var(--yellow); background: rgba(255,200,87,.1); }
+.texture-status.error { color: var(--red); background: rgba(255,107,107,.1); }
+.ytd-table-note { margin: 0; padding: 12px 16px; border-top: 1px solid var(--border); color: #697381; font-size: 9px; text-align: center; }
+
 .optimizer-scope { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 56px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--border); }
 .optimizer-scope > div { padding: 20px; background: #111419; }
 .optimizer-scope span { color: #cdd3dc; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
@@ -379,6 +400,10 @@ a.feature-card:hover { transform: translateY(-3px); border-color: rgba(255,87,34
   .metric-grid article { padding: 14px; }
   .card-heading { align-items: flex-start; }
   .issue-row { padding: 14px; }
+  .ytd-report .card-heading { flex-direction: column; }
+  .ytd-summary { width: 100%; }
+  .ytd-summary > span { flex: 1; text-align: left; }
+  .texture-table th, .texture-table td { padding: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

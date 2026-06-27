@@ -74,8 +74,14 @@ a análise e a geração do novo ZIP acontecem no navegador com a File API e uma
 cópia local do JSZip. Não existe endpoint de upload.
 
 As correções automáticas são conservadoras: manifesto ausente/incompleto,
-arquivos GTA fora de `stream/` e lixo temporário. Modelos `.yft`, texturas `.ytd`
-e outros formatos compilados são apenas diagnosticados, nunca regravados.
+arquivos GTA fora de `stream/` e lixo temporário. O analisador abre o container
+RSC7 de cada `.ytd` em um Web Worker e identifica resolução, formato BC/DXGI,
+mipmaps, memória estimada e conteúdo duplicado. Os formatos compilados ainda
+são preservados sem regravação; o encoder WebAssembly será a próxima etapa.
+
+A leitura YTD foi implementada a partir do layout público RSC7 e validada contra
+o comportamento do [EasyOptimizer-V](https://github.com/LN-Development/EasyOptimizer-V).
+Veja o aviso técnico e de licença em `web/vendor/EASYOPTIMIZER-NOTICE.md`.
 
 ## Gerar os previews de áudio
 
