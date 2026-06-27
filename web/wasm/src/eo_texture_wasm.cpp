@@ -37,8 +37,20 @@ static int g_output_width = 0;
 static int g_output_height = 0;
 static int g_output_mips = 0;
 static int g_output_stride = 0;
+static int g_output_format = 0;
+static int g_output_noop = 0;
 static int g_last_error = 0;
 static bool g_initialized = false;
+
+// Detecta se o canal alpha é totalmente opaco (255). Texturas opacas em BC2/BC3
+// carregam um bloco de alpha inútil (8 bytes/bloco) que pode ser dropado para BC1.
+static bool alpha_is_opaque(const uint8_t *rgba, int width, int height) {
+    size_t count = (size_t)width * height;
+    for (size_t i = 0; i < count; i++) {
+        if (rgba[i * 4 + 3] != 255) return false;
+    }
+    return true;
+}
 
 static bool is_block_format(int format) { return format >= FORMAT_BC1 && format <= FORMAT_BC7; }
 
@@ -273,10 +285,12 @@ EMSCRIPTEN_KEEPALIVE void eo_release_output() {
 }
 
 EMSCRIPTEN_KEEPALIVE uintptr_t eo_optimize_texture(const uint8_t *source, size_t source_size,
-    int width, int height, int format, int max_dimension, int max_mips, int quality) {
+    int width, int height, int format, int max_dimension, int max_mips, int quality,
+    int allow_downgrade, int source_mips) {
     initialize_codec();
     eo_release_output();
     g_last_error = 0;
+    g_output_noop = 0;
     if (!source || width <= 0 || height <= 0 || format < FORMAT_BC1 || format > FORMAT_B5G5R5A1) {
         g_last_error = 1; return 0;
     }
@@ -290,6 +304,15 @@ EMSCRIPTEN_KEEPALIVE uintptr_t eo_optimize_texture(const uint8_t *source, size_t
     if (!decode_base(source, source_size, width, height, format, base)) {
         free(base); g_last_error = 3; return 0;
     }
+
+    // Downgrade consciente de alpha: BC2/BC3 totalmente opaco -> BC1 (RGB idêntico,
+    // dropa só o bloco de alpha inútil = metade do tamanho, praticamente sem perda).
+    int out_format = format;
+    if (allow_downgrade && (format == FORMAT_BC2 || format == FORMAT_BC3) &&
+        alpha_is_opaque(base, width, height)) {
+        out_format = FORMAT_BC1;
+    }
+
     uint8_t *target_base = base;
     if (target_width != width || target_height != height) {
         target_base = resize_rgba(base, width, height, target_width, target_height);
@@ -298,11 +321,22 @@ EMSCRIPTEN_KEEPALIVE uintptr_t eo_optimize_texture(const uint8_t *source, size_t
     }
 
     int mip_count = 1, mw = target_width, mh = target_height;
-    size_t total = level_size(mw, mh, format);
+    size_t total = level_size(mw, mh, out_format);
     while ((mw > 1 || mh > 1) && mip_count < max_mips) {
         mw = std::max(1, mw / 2); mh = std::max(1, mh / 2);
-        total += level_size(mw, mh, format); mip_count++;
+        total += level_size(mw, mh, out_format); mip_count++;
     }
+
+    // No-op: sem mudança de formato, sem resize e já tem mips suficientes ->
+    // não re-encoda (evita perda de qualidade). O JS mantém a textura original.
+    if (out_format == format && target_width == width && target_height == height &&
+        source_mips >= mip_count) {
+        free(target_base);
+        g_output_noop = 1;
+        g_output_format = format;
+        return 0;
+    }
+
     g_output = (uint8_t *)malloc(total);
     if (!g_output) { free(target_base); g_last_error = 5; return 0; }
     size_t cursor = 0;
@@ -313,18 +347,19 @@ EMSCRIPTEN_KEEPALIVE uintptr_t eo_optimize_texture(const uint8_t *source, size_t
             pixels = resize_rgba(target_base, target_width, target_height, mw, mh);
             if (!pixels) { free(target_base); eo_release_output(); g_last_error = 6; return 0; }
         }
-        if (!encode_level(pixels, mw, mh, format, quality, g_output + cursor)) {
+        if (!encode_level(pixels, mw, mh, out_format, quality, g_output + cursor)) {
             if (mip > 0) free(pixels);
             free(target_base); eo_release_output(); g_last_error = 7; return 0;
         }
-        cursor += level_size(mw, mh, format);
+        cursor += level_size(mw, mh, out_format);
         if (mip > 0) free(pixels);
         mw = std::max(1, mw / 2); mh = std::max(1, mh / 2);
     }
     free(target_base);
     g_output_size = cursor;
     g_output_width = target_width; g_output_height = target_height;
-    g_output_mips = mip_count; g_output_stride = row_pitch(target_width, format);
+    g_output_mips = mip_count; g_output_stride = row_pitch(target_width, out_format);
+    g_output_format = out_format;
     return (uintptr_t)g_output;
 }
 
@@ -333,6 +368,8 @@ EMSCRIPTEN_KEEPALIVE int eo_last_width() { return g_output_width; }
 EMSCRIPTEN_KEEPALIVE int eo_last_height() { return g_output_height; }
 EMSCRIPTEN_KEEPALIVE int eo_last_mips() { return g_output_mips; }
 EMSCRIPTEN_KEEPALIVE int eo_last_stride() { return g_output_stride; }
+EMSCRIPTEN_KEEPALIVE int eo_last_format() { return g_output_format; }
+EMSCRIPTEN_KEEPALIVE int eo_last_noop() { return g_output_noop; }
 EMSCRIPTEN_KEEPALIVE int eo_last_error() { return g_last_error; }
 
 }

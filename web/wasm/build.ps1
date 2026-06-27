@@ -34,7 +34,7 @@ docker run --rm `
     -s ALLOW_MEMORY_GROWTH=1 -s FILESYSTEM=0 -s ENVIRONMENT=web,worker,node `
     -s ASSERTIONS=0 -s MALLOC=emmalloc `
     -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' `
-    -s EXPORTED_FUNCTIONS='["_malloc","_free","_eo_optimize_texture","_eo_release_output","_eo_last_size","_eo_last_width","_eo_last_height","_eo_last_mips","_eo_last_stride","_eo_last_error"]' `
+    -s EXPORTED_FUNCTIONS='["_malloc","_free","_eo_optimize_texture","_eo_release_output","_eo_last_size","_eo_last_width","_eo_last_height","_eo_last_mips","_eo_last_stride","_eo_last_format","_eo_last_noop","_eo_last_error"]' `
     --extern-pre-js /work/wasm/src/license-pre.js `
     -o /work/assets/eo-texture-codec.js
 

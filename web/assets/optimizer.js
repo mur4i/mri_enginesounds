@@ -20,10 +20,26 @@ const STREAM_EXTENSIONS = new Set([
 const JUNK_NAMES = new Set(["thumbs.db", ".ds_store", "desktop.ini"]);
 const JUNK_EXTENSIONS = new Set([".tmp", ".bak"]);
 const YTD_PROFILES = {
-  quality: { name: "Qualidade", maxDimension: 4096, maxMips: 13, quality: 2, generateMipmaps: true },
-  balanced: { name: "Balanceado", maxDimension: 2048, maxMips: 13, quality: 1, generateMipmaps: true },
-  fps: { name: "FPS", maxDimension: 1024, maxMips: 12, quality: 0, generateMipmaps: true },
+  quality: { name: "Qualidade", maxDimension: 4096, maxMips: 13, quality: 2, generateMipmaps: true, allowDowngrade: true },
+  balanced: { name: "Balanceado", maxDimension: 2048, maxMips: 13, quality: 1, generateMipmaps: true, allowDowngrade: true, roleCaps: { normal: 1024, spec: 1024, dirt: 512, detail: 1024 } },
+  fps: { name: "FPS", maxDimension: 1024, maxMips: 12, quality: 0, generateMipmaps: true, allowDowngrade: true, roleCaps: { normal: 512, spec: 512, dirt: 256, detail: 512 } },
+  potato: { name: "Potato", maxDimension: 512, maxMips: 11, quality: 0, generateMipmaps: true, allowDowngrade: true },
 };
+
+// Mesma classificação por papel do ytd-optimizer (mantém diffuse/placas/emblemas em alta).
+function textureRole(name) {
+  const n = (name || "").toLowerCase();
+  if (n.indexOf("normal") >= 0 || n.indexOf("_nrm") >= 0 || /_n\d*$/.test(n)) return "normal";
+  if (n.indexOf("spec") >= 0) return "spec";
+  if (n.indexOf("dirt") >= 0 || n.indexOf("grunge") >= 0 || n.indexOf("grime") >= 0) return "dirt";
+  if (n.indexOf("detail") >= 0) return "detail";
+  return "diffuse";
+}
+function effectiveMaxDimension(texture, profile) {
+  if (!profile.roleCaps) return profile.maxDimension;
+  const cap = profile.roleCaps[textureRole(texture.name)];
+  return cap ? Math.min(profile.maxDimension, cap) : profile.maxDimension;
+}
 
 const elements = {
   uploadPanel: document.getElementById("upload-panel"),
@@ -438,7 +454,11 @@ async function analyzeYtdContents(session, addIssue, registerFix) {
 
 function isYtdOptimizationCandidate(texture, profile) {
   const largestSide = Math.max(texture.width, texture.height);
-  return largestSide > profile.maxDimension || (profile.generateMipmaps && texture.mipCount <= 1 && largestSide >= 512);
+  if (largestSide > effectiveMaxDimension(texture, profile)) return true;
+  if (profile.generateMipmaps && texture.mipCount <= 1 && largestSide >= 512) return true;
+  // BC2/BC3 podem render downgrade->BC1 se opacas (confirmado ao otimizar)
+  if (profile.allowDowngrade && (texture.codecFormat === 1 || texture.codecFormat === 2)) return true;
+  return false;
 }
 
 function inspectYtdInWorker(bytes) {
@@ -777,6 +797,8 @@ async function generateOptimizedZip() {
     let ytdOptimized = 0;
     let ytdBeforeBytes = 0;
     let ytdAfterBytes = 0;
+    let ytdDowngrades = 0;
+    let ytdResizes = 0;
     const profile = YTD_PROFILES[elements.ytdProfile.value] || YTD_PROFILES.balanced;
     for (const entry of session.entries) {
       if (selectedFixes.has("remove-junk") && session.junkPaths.has(entry.path)) continue;
@@ -798,6 +820,8 @@ async function generateOptimizedZip() {
           ytdOptimized += result.optimizedTextures;
           ytdBeforeBytes += result.beforeTextureBytes;
           ytdAfterBytes += result.afterTextureBytes;
+          ytdDowngrades += result.formatDowngrades || 0;
+          ytdResizes += result.resizes || 0;
         }
       }
       root.file(targetPath, data);
@@ -822,10 +846,18 @@ async function generateOptimizedZip() {
     link.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
     elements.download.textContent = "✓ ZIP gerado";
-    const textureResult = ytdOptimized
-      ? " " + ytdOptimized + " textura(s): " + formatBytes(ytdBeforeBytes) + " → " + formatBytes(ytdAfterBytes) + "."
-      : "";
-    elements.downloadNote.textContent = formatBytes(blob.size) + " gerados localmente." + textureResult + " O original não foi alterado.";
+    let textureResult = "";
+    if (ytdOptimized) {
+      const parts = [];
+      if (ytdResizes) parts.push(ytdResizes + " redimensionada(s)");
+      if (ytdDowngrades) parts.push(ytdDowngrades + " convertida(s) p/ BC1");
+      const breakdown = parts.length ? " (" + parts.join(", ") + ")" : "";
+      const vramDelta = ytdAfterBytes <= ytdBeforeBytes
+        ? "VRAM " + formatBytes(ytdBeforeBytes) + " → " + formatBytes(ytdAfterBytes)
+        : "VRAM " + formatBytes(ytdBeforeBytes) + " → " + formatBytes(ytdAfterBytes) + " (mipmaps adicionados melhoram a GPU)";
+      textureResult = " " + ytdOptimized + " textura(s)" + breakdown + " · " + vramDelta + ".";
+    }
+    elements.downloadNote.textContent = formatBytes(blob.size) + " no disco." + textureResult + " O original não foi alterado.";
   } catch (error) {
     console.error(error);
     elements.download.textContent = "Falha ao gerar ZIP";

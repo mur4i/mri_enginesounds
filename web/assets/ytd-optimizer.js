@@ -4,7 +4,33 @@
   root.MRIYtdOptimizer = factory(root);
 })(typeof self !== "undefined" ? self : globalThis, function (root) {
   const PHYSICAL_BASE = 0x60000000n;
+  // codecFormat (índice do codec) -> código de formato DX9 legacy (escrito na struct do YTD).
+  // Usado só quando o formato muda (ex.: downgrade BC3->BC1).
+  const LEGACY_FORMAT_CODES = {
+    0: 0x31545844, // BC1 / DXT1
+    1: 0x33545844, // BC2 / DXT3
+    2: 0x35545844, // BC3 / DXT5
+    3: 0x31495441, // BC4 / ATI1
+    4: 0x32495441, // BC5 / ATI2
+    5: 0x20374342, // BC7
+  };
   let codecPromise = null;
+
+  // Classifica a textura pelo nome (conservador: só rebaixa quando tem certeza;
+  // tudo o que não casa = "diffuse" e mantém a resolução alta, pra não borrar o carro).
+  function textureRole(name) {
+    const n = (name || "").toLowerCase();
+    if (n.indexOf("normal") >= 0 || n.indexOf("_nrm") >= 0 || /_n\d*$/.test(n)) return "normal";
+    if (n.indexOf("spec") >= 0) return "spec";
+    if (n.indexOf("dirt") >= 0 || n.indexOf("grunge") >= 0 || n.indexOf("grime") >= 0) return "dirt";
+    if (n.indexOf("detail") >= 0) return "detail";
+    return "diffuse";
+  }
+  function effectiveMaxDimension(texture, profile) {
+    if (!profile.roleCaps) return profile.maxDimension;
+    const cap = profile.roleCaps[textureRole(texture.name)];
+    return cap ? Math.min(profile.maxDimension, cap) : profile.maxDimension;
+  }
 
   function optimizerError(code, message) {
     const error = new Error(message);
@@ -27,7 +53,12 @@
 
   function shouldOptimize(texture, profile) {
     const largestSide = Math.max(texture.width, texture.height);
-    return largestSide > profile.maxDimension || (profile.generateMipmaps && texture.mipCount <= 1 && largestSide >= 512);
+    if (largestSide > effectiveMaxDimension(texture, profile)) return true;
+    if (profile.generateMipmaps && texture.mipCount <= 1 && largestSide >= 512) return true;
+    // BC2/BC3 (alpha-capable) podem ser candidatas a downgrade->BC1 se forem opacas;
+    // o WASM faz no-op se não houver ganho (sem re-encode, sem perda).
+    if (profile.allowDowngrade && (texture.codecFormat === 1 || texture.codecFormat === 2)) return true;
+    return false;
   }
 
   function largeMipBytes(width, height, format, mipCount) {
@@ -62,11 +93,15 @@
         texture.width,
         texture.height,
         texture.codecFormat,
-        profile.maxDimension,
+        effectiveMaxDimension(texture, profile),
         profile.maxMips || 13,
         profile.quality,
+        profile.allowDowngrade ? 1 : 0,
+        texture.mipCount,
       );
       if (!output) {
+        // no-op: nada a ganhar nessa textura -> mantém a original (sem perda)
+        if (typeof codec._eo_last_noop === "function" && codec._eo_last_noop()) return null;
         throw optimizerError("WASM_CODEC_" + codec._eo_last_error(), "O codec não conseguiu processar " + texture.name + ".");
       }
       const size = codec._eo_last_size();
@@ -76,6 +111,7 @@
         height: codec._eo_last_height(),
         mipCount: codec._eo_last_mips(),
         stride: codec._eo_last_stride(),
+        codecFormat: typeof codec._eo_last_format === "function" ? codec._eo_last_format() : texture.codecFormat,
       };
     } finally {
       codec._eo_release_output();
@@ -121,7 +157,11 @@
       const texture = candidates[index];
       if (onProgress) onProgress({ current: index + 1, total: candidates.length, name: texture.name });
       const source = model.graphics.subarray(texture.dataOffset, texture.dataOffset + texture.dataBytes);
-      replacements.set(texture.index, optimizeTexture(codec, texture, source, profile));
+      const replacement = optimizeTexture(codec, texture, source, profile);
+      if (replacement) replacements.set(texture.index, replacement);
+    }
+    if (!replacements.size) {
+      return { buffer: model.source.slice().buffer, changed: false, optimizedTextures: 0, beforeBytes: model.source.byteLength, afterBytes: model.source.byteLength };
     }
 
     const textureData = model.textures.map(function (texture) {
@@ -132,6 +172,7 @@
         height: texture.height,
         mipCount: texture.mipCount,
         stride: texture.stride,
+        codecFormat: texture.codecFormat,
       };
     });
     const usedGraphicsBytes = textureData.reduce(function (sum, item) { return sum + item.data.byteLength; }, 0);
@@ -142,15 +183,24 @@
     payload.set(model.system, 0);
     const systemView = new DataView(payload.buffer, 0, model.systemBytes);
     let graphicsCursor = 0;
+    let formatDowngrades = 0;
+    let resizes = 0;
     model.textures.forEach(function (texture, index) {
       const item = textureData[index];
+      const outFormat = typeof item.codecFormat === "number" ? item.codecFormat : texture.codecFormat;
       payload.set(item.data, model.systemBytes + graphicsCursor);
       const structure = texture.structureOffset;
-      systemView.setUint32(structure + 0x40, largeMipBytes(item.width, item.height, texture.codecFormat, item.mipCount), true);
+      systemView.setUint32(structure + 0x40, largeMipBytes(item.width, item.height, outFormat, item.mipCount), true);
       systemView.setUint16(structure + 0x50, item.width, true);
       systemView.setUint16(structure + 0x52, item.height, true);
       systemView.setUint16(structure + 0x56, item.stride, true);
       systemView.setUint8(structure + 0x5d, item.mipCount);
+      // formato mudou (ex.: downgrade BC3->BC1): atualiza o código de formato na struct
+      if (outFormat !== texture.codecFormat && LEGACY_FORMAT_CODES[outFormat] !== undefined) {
+        systemView.setUint32(structure + 0x58, LEGACY_FORMAT_CODES[outFormat], true);
+        formatDowngrades += 1;
+      }
+      if (item.width < texture.width || item.height < texture.height) resizes += 1;
       systemView.setBigUint64(structure + 0x70, PHYSICAL_BASE + BigInt(graphicsCursor), true);
       graphicsCursor += item.data.byteLength;
     });
@@ -171,6 +221,8 @@
       afterBytes: output.byteLength,
       beforeTextureBytes: model.textureBytes,
       afterTextureBytes: usedGraphicsBytes,
+      formatDowngrades: formatDowngrades,
+      resizes: resizes,
     };
   }
 
