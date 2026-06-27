@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]  # web/scripts/ -> raiz do repo
 # .awc originais versionados na raiz do repo (que tambem e o resource FiveM)
-DEFAULT_SFX = ROOT / "sfx"
+DEFAULT_SFX = ROOT / "resource" / "audio"
 PREVIEWS = ROOT / "web" / "previews"  # site fica em web/
 MAX_SECONDS = 12  # duracao maxima do preview
 
@@ -75,7 +75,7 @@ def main():
         if dst.exists():
             skip += 1
             continue
-        awc = sfx / f"dlc_{h}" / f"{h}.awc"
+        awc = sfx / h / f"dlc_{h}" / f"{h}.awc"
         if not awc.exists():
             print(f"  sem .awc: {h}")
             fail += 1

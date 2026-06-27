@@ -17,9 +17,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]  # web/scripts/ -> raiz do repo
 # o repo vive dentro de resources/[VEHICLE AUDIO]/ (clone ao lado dos packs fonte)
 SRCBASE = REPO.parent
-RES_AC = REPO / "audioconfig"
-RES_SFX = REPO / "sfx"
-FXM = REPO / "fxmanifest.lua"
+RES_AUDIO = REPO / "resource" / "audio"
+FXM = REPO / "resource" / "fxmanifest.lua"
 CAT = REPO / "web" / "data" / "catalog.json"
 
 # ordem de prioridade: se o mesmo hash existir em 2 packs, usa o primeiro
@@ -119,24 +118,29 @@ def main():
         if not (game.exists() and sounds.exists() and srcsfx.is_dir()):
             print(f"  PULADO (faltam arquivos): {h}")
             continue
+        
+        # Create folder for engine
+        engine_dir = RES_AUDIO / h
+        engine_dir.mkdir(parents=True, exist_ok=True)
+        
         # copia audioconfig
-        shutil.copy2(game, RES_AC / game.name)
-        shutil.copy2(sounds, RES_AC / sounds.name)
+        shutil.copy2(game, engine_dir / game.name)
+        shutil.copy2(sounds, engine_dir / sounds.name)
         has_amp = amp.exists()
         if has_amp:
-            shutil.copy2(amp, RES_AC / amp.name)
+            shutil.copy2(amp, engine_dir / amp.name)
         # copia sfx
-        dst = RES_SFX / f"dlc_{h}"
+        dst = engine_dir / f"dlc_{h}"
         if dst.exists():
             shutil.rmtree(dst)
         shutil.copytree(srcsfx, dst, ignore=shutil.ignore_patterns("*.nametable"))
         # linhas do manifesto
         fxlines.append(f"-- {prettify(h)} --")
         if has_amp:
-            fxlines.append(f"data_file 'AUDIO_SYNTHDATA' 'audioconfig/{h}_amp.dat'")
-        fxlines.append(f"data_file 'AUDIO_GAMEDATA' 'audioconfig/{h}_game.dat'")
-        fxlines.append(f"data_file 'AUDIO_SOUNDDATA' 'audioconfig/{h}_sounds.dat'")
-        fxlines.append(f"data_file 'AUDIO_WAVEPACK' 'sfx/dlc_{h}'\n")
+            fxlines.append(f"data_file 'AUDIO_SYNTHDATA' 'audio/{h}/{h}_amp.dat'")
+        fxlines.append(f"data_file 'AUDIO_GAMEDATA' 'audio/{h}/{h}_game.dat'")
+        fxlines.append(f"data_file 'AUDIO_SOUNDDATA' 'audio/{h}/{h}_sounds.dat'")
+        fxlines.append(f"data_file 'AUDIO_WAVEPACK' 'audio/{h}/dlc_{h}'\n")
         # entrada do catalogo
         name = prettify(h)
         cat.append({

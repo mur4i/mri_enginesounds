@@ -18,9 +18,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SRC = REPO.parent / "[AUDIOS]"
-RES_AC = REPO / "audioconfig"
-RES_SFX = REPO / "sfx"
-FXM = REPO / "fxmanifest.lua"
+RES_AUDIO = REPO / "resource" / "audio"
+FXM = REPO / "resource" / "fxmanifest.lua"
 CAT = REPO / "web" / "data" / "catalog.json"
 
 # nomes legiveis para hashes reconheciveis; o resto fica com o proprio hash
@@ -107,22 +106,27 @@ def main():
             print(f"  PULADO (faltam arquivos): {h}")
             skipped += 1
             continue
-        shutil.copy2(game, RES_AC / game.name)
-        shutil.copy2(sounds, RES_AC / sounds.name)
+        
+        # Create folder for engine
+        engine_dir = RES_AUDIO / h
+        engine_dir.mkdir(parents=True, exist_ok=True)
+        
+        shutil.copy2(game, engine_dir / game.name)
+        shutil.copy2(sounds, engine_dir / sounds.name)
         has_amp = amp.exists()
         if has_amp:
-            shutil.copy2(amp, RES_AC / amp.name)
-        dst = RES_SFX / f"dlc_{h}"
+            shutil.copy2(amp, engine_dir / amp.name)
+        dst = engine_dir / f"dlc_{h}"
         if dst.exists():
             shutil.rmtree(dst)
         shutil.copytree(dlcdir, dst, ignore=shutil.ignore_patterns("*.nametable"))
         name = NAMES.get(h, h)
         fxlines.append(f"-- {name} --")
         if has_amp:
-            fxlines.append(f"data_file 'AUDIO_SYNTHDATA' 'audioconfig/{h}_amp.dat'")
-        fxlines.append(f"data_file 'AUDIO_GAMEDATA' 'audioconfig/{h}_game.dat'")
-        fxlines.append(f"data_file 'AUDIO_SOUNDDATA' 'audioconfig/{h}_sounds.dat'")
-        fxlines.append(f"data_file 'AUDIO_WAVEPACK' 'sfx/dlc_{h}'\n")
+            fxlines.append(f"data_file 'AUDIO_SYNTHDATA' 'audio/{h}/{h}_amp.dat'")
+        fxlines.append(f"data_file 'AUDIO_GAMEDATA' 'audio/{h}/{h}_game.dat'")
+        fxlines.append(f"data_file 'AUDIO_SOUNDDATA' 'audio/{h}/{h}_sounds.dat'")
+        fxlines.append(f"data_file 'AUDIO_WAVEPACK' 'audio/{h}/dlc_{h}'\n")
         cat.append({
             "name": name, "hash": h, "image": "",
             "author": "", "sourceUrl": "",

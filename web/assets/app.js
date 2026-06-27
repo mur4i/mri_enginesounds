@@ -335,16 +335,16 @@ function manifestFor(h, hasAmp) {
     "game 'gta5'",
     "",
     "files {",
-    `\t'audioconfig/${h}_game.dat151.rel',`,
-    `\t'audioconfig/${h}_sounds.dat54.rel',`,
+    `\t'audio/${h}/*.rel',`,
+    `\t'audio/${h}/dlc_${h}/*.awc',`,
+    "}",
+    "",
   ];
-  if (hasAmp) lines.push(`\t'audioconfig/${h}_amp.dat10.rel',`);
-  lines.push(`\t'sfx/dlc_${h}/*.awc',`, "}", "");
-  if (hasAmp) lines.push(`data_file 'AUDIO_SYNTHDATA' 'audioconfig/${h}_amp.dat'`);
+  if (hasAmp) lines.push(`data_file 'AUDIO_SYNTHDATA' 'audio/${h}/${h}_amp.dat'`);
   lines.push(
-    `data_file 'AUDIO_GAMEDATA' 'audioconfig/${h}_game.dat'`,
-    `data_file 'AUDIO_SOUNDDATA' 'audioconfig/${h}_sounds.dat'`,
-    `data_file 'AUDIO_WAVEPACK' 'sfx/dlc_${h}'`,
+    `data_file 'AUDIO_GAMEDATA' 'audio/${h}/${h}_game.dat'`,
+    `data_file 'AUDIO_SOUNDDATA' 'audio/${h}/${h}_sounds.dat'`,
+    `data_file 'AUDIO_WAVEPACK' 'audio/${h}/dlc_${h}'`,
     ""
   );
   return lines.join("\n");
@@ -358,9 +358,9 @@ async function downloadResource(s, btn) {
   try {
     // obrigatorios
     const [game, sounds, awc] = await Promise.all([
-      rawFile(`audioconfig/${h}_game.dat151.rel`),
-      rawFile(`audioconfig/${h}_sounds.dat54.rel`),
-      rawFile(`sfx/dlc_${h}/${h}.awc`),
+      rawFile(`resource/audio/${h}/${h}_game.dat151.rel`),
+      rawFile(`resource/audio/${h}/${h}_sounds.dat54.rel`),
+      rawFile(`resource/audio/${h}/dlc_${h}/${h}.awc`),
     ]);
     if (!game || !sounds || !awc) {
       btn.textContent = "✕ Indisponível";
@@ -369,18 +369,18 @@ async function downloadResource(s, btn) {
     }
     // opcionais
     const [amp, npc] = await Promise.all([
-      rawFile(`audioconfig/${h}_amp.dat10.rel`),
-      rawFile(`sfx/dlc_${h}/${h}_npc.awc`),
+      rawFile(`resource/audio/${h}/${h}_amp.dat10.rel`),
+      rawFile(`resource/audio/${h}/dlc_${h}/${h}_npc.awc`),
     ]);
 
     const zip = new JSZip();
     const root = zip.folder(h); // resource = <hash>
     root.file("fxmanifest.lua", manifestFor(h, !!amp));
-    const ac = root.folder("audioconfig");
-    ac.file(`${h}_game.dat151.rel`, game);
-    ac.file(`${h}_sounds.dat54.rel`, sounds);
-    if (amp) ac.file(`${h}_amp.dat10.rel`, amp);
-    const dlc = root.folder("sfx").folder(`dlc_${h}`);
+    const engineDir = root.folder("audio").folder(h);
+    engineDir.file(`${h}_game.dat151.rel`, game);
+    engineDir.file(`${h}_sounds.dat54.rel`, sounds);
+    if (amp) engineDir.file(`${h}_amp.dat10.rel`, amp);
+    const dlc = engineDir.folder(`dlc_${h}`);
     dlc.file(`${h}.awc`, awc);
     if (npc) dlc.file(`${h}_npc.awc`, npc);
 
@@ -511,10 +511,10 @@ function manifestForMultiple(hashes, ampHashingMap, includeScripts) {
 
   lines.push(
     "files {",
-    "\t'audioconfig/*.dat151.rel',",
-    "\t'audioconfig/*.dat54.rel',",
-    "\t'audioconfig/*.dat10.rel',",
-    "\t'sfx/**/*.awc',",
+    "\t'audio/**/*.dat151.rel',",
+    "\t'audio/**/*.dat54.rel',",
+    "\t'audio/**/*.dat10.rel',",
+    "\t'audio/**/*.awc',",
   );
   if (includeScripts) {
     lines.push("\t'client.lua',", "\t'server.lua',");
@@ -523,11 +523,11 @@ function manifestForMultiple(hashes, ampHashingMap, includeScripts) {
 
   for (const h of hashes) {
     const hasAmp = ampHashingMap[h];
-    if (hasAmp) lines.push(`data_file 'AUDIO_SYNTHDATA' 'audioconfig/${h}_amp.dat'`);
+    if (hasAmp) lines.push(`data_file 'AUDIO_SYNTHDATA' 'audio/${h}/${h}_amp.dat'`);
     lines.push(
-      `data_file 'AUDIO_GAMEDATA' 'audioconfig/${h}_game.dat'`,
-      `data_file 'AUDIO_SOUNDDATA' 'audioconfig/${h}_sounds.dat'`,
-      `data_file 'AUDIO_WAVEPACK' 'sfx/dlc_${h}'`,
+      `data_file 'AUDIO_GAMEDATA' 'audio/${h}/${h}_game.dat'`,
+      `data_file 'AUDIO_SOUNDDATA' 'audio/${h}/${h}_sounds.dat'`,
+      `data_file 'AUDIO_WAVEPACK' 'audio/${h}/dlc_${h}'`,
       ""
     );
   }
@@ -548,8 +548,6 @@ async function downloadSelectedPack(btn) {
   try {
     const zip = new JSZip();
     const root = zip.folder("custom_enginesounds");
-    const ac = root.folder("audioconfig");
-    const sfx = root.folder("sfx");
     
     const ampHashingMap = {};
     let count = 0;
@@ -559,9 +557,9 @@ async function downloadSelectedPack(btn) {
       btn.textContent = `⏳ Baixando (${count + 1}/${total})…`;
       
       const [game, sounds, awc] = await Promise.all([
-        rawFile(`audioconfig/${h}_game.dat151.rel`),
-        rawFile(`audioconfig/${h}_sounds.dat54.rel`),
-        rawFile(`sfx/dlc_${h}/${h}.awc`),
+        rawFile(`resource/audio/${h}/${h}_game.dat151.rel`),
+        rawFile(`resource/audio/${h}/${h}_sounds.dat54.rel`),
+        rawFile(`resource/audio/${h}/dlc_${h}/${h}.awc`),
       ]);
       
       if (!game || !sounds || !awc) {
@@ -569,22 +567,23 @@ async function downloadSelectedPack(btn) {
         continue;
       }
       
-      ac.file(`${h}_game.dat151.rel`, game);
-      ac.file(`${h}_sounds.dat54.rel`, sounds);
+      const engineDir = root.folder("audio").folder(h);
+      engineDir.file(`${h}_game.dat151.rel`, game);
+      engineDir.file(`${h}_sounds.dat54.rel`, sounds);
       
       const [amp, npc] = await Promise.all([
-        rawFile(`audioconfig/${h}_amp.dat10.rel`),
-        rawFile(`sfx/dlc_${h}/${h}_npc.awc`),
+        rawFile(`resource/audio/${h}/${h}_amp.dat10.rel`),
+        rawFile(`resource/audio/${h}/dlc_${h}/${h}_npc.awc`),
       ]);
       
       if (amp) {
-        ac.file(`${h}_amp.dat10.rel`, amp);
+        engineDir.file(`${h}_amp.dat10.rel`, amp);
         ampHashingMap[h] = true;
       } else {
         ampHashingMap[h] = false;
       }
       
-      const dlc = sfx.folder(`dlc_${h}`);
+      const dlc = engineDir.folder(`dlc_${h}`);
       dlc.file(`${h}.awc`, awc);
       if (npc) {
         dlc.file(`${h}_npc.awc`, npc);
