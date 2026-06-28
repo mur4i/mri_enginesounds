@@ -82,6 +82,18 @@
     return width * height * pixelBytes;
   }
 
+  // Stride RAGE = bytes por LINHA DE PIXEL. Para formato em bloco é o tamanho da
+  // linha de blocos dividido por 4 (altura do bloco): ceil(w/4)*blockBytes/4.
+  // (o WASM e o downgrade calculavam ceil(w/4)*blockBytes = 4x grande -> cisalhava)
+  function strideFor(width, codecFormat) {
+    if (codecFormat <= 5) {
+      const blockBytes = codecFormat === 0 || codecFormat === 3 ? 8 : 16;
+      return Math.max(1, Math.ceil(width / 4)) * (blockBytes / 4);
+    }
+    const pixelBytes = codecFormat === 6 || codecFormat === 7 ? 4 : codecFormat >= 10 ? 2 : 1;
+    return width * pixelBytes;
+  }
+
   function bc3AlphaPalette(a0, a1) {
     const palette = [a0, a1];
     if (a0 > a1) {
@@ -371,7 +383,7 @@
       systemView.setUint32(structure + 0x40, largeMipBytes(item.width, item.height, outFormat, item.mipCount), true);
       systemView.setUint16(structure + 0x50, item.width, true);
       systemView.setUint16(structure + 0x52, item.height, true);
-      systemView.setUint16(structure + 0x56, item.stride, true);
+      systemView.setUint16(structure + 0x56, strideFor(item.width, outFormat), true);
       systemView.setUint8(structure + 0x5d, item.mipCount);
       // formato mudou (ex.: downgrade BC3->BC1): atualiza o código de formato na struct
       if (outFormat !== texture.codecFormat && LEGACY_FORMAT_CODES[outFormat] !== undefined) {
