@@ -20,7 +20,7 @@ const STREAM_EXTENSIONS = new Set([
 const JUNK_NAMES = new Set(["thumbs.db", ".ds_store", "desktop.ini"]);
 const JUNK_EXTENSIONS = new Set([".tmp", ".bak"]);
 const YTD_PROFILES = {
-  quality: { name: "Qualidade", maxDimension: 4096, maxMips: 13, quality: 2, generateMipmaps: true, allowDowngrade: true },
+  quality: { name: "Qualidade", maxDimension: 4096, maxMips: 13, quality: 2, generateMipmaps: true, allowDowngrade: false },
   balanced: { name: "Balanceado", maxDimension: 2048, maxMips: 13, quality: 1, generateMipmaps: true, allowDowngrade: true, roleCaps: { normal: 1024, spec: 1024, dirt: 512, detail: 1024 } },
   fps: { name: "FPS", maxDimension: 1024, maxMips: 12, quality: 0, generateMipmaps: true, allowDowngrade: true, roleCaps: { normal: 512, spec: 512, dirt: 256, detail: 512 } },
   potato: { name: "Potato", maxDimension: 512, maxMips: 11, quality: 0, generateMipmaps: true, allowDowngrade: true },
@@ -39,6 +39,18 @@ function effectiveMaxDimension(texture, profile) {
   if (!profile.roleCaps) return profile.maxDimension;
   const cap = profile.roleCaps[textureRole(texture.name)];
   return cap ? Math.min(profile.maxDimension, cap) : profile.maxDimension;
+}
+
+function countLocalYtdDuplicates(report) {
+  const seen = new Set();
+  let duplicates = 0;
+  report.textures.forEach(function (texture) {
+    if (!texture.dataHash) return;
+    const key = texture.dataHash + ":" + texture.dataBytes;
+    if (seen.has(key)) duplicates += 1;
+    else seen.add(key);
+  });
+  return duplicates;
 }
 
 const elements = {
@@ -434,20 +446,26 @@ async function analyzeYtdContents(session, addIssue, registerFix) {
   const fps = YTD_PROFILES.fps;
   let balancedCandidates = 0;
   let availableCandidates = 0;
+  let localDuplicateCandidates = 0;
   session.ytdReports.forEach(function (report) {
     if (report.generation !== "Legacy" || report.rejectedTextures) return;
     const defaultItems = report.textures.filter(function (texture) { return isYtdOptimizationCandidate(texture, balanced); });
     const allItems = report.textures.filter(function (texture) { return isYtdOptimizationCandidate(texture, fps); });
+    const localDuplicates = countLocalYtdDuplicates(report);
     balancedCandidates += defaultItems.length;
     availableCandidates += allItems.length;
-    if (allItems.length) {
+    localDuplicateCandidates += localDuplicates;
+    if (allItems.length || localDuplicates) {
       session.optimizableYtdPaths.add(report.path);
     }
   });
-  if (availableCandidates) {
-    const description = balancedCandidates
+  if (availableCandidates || localDuplicateCandidates) {
+    let description = balancedCandidates
       ? balancedCandidates + " textura(s) no perfil Balanceado: resize, recompressão e mipmaps via WebAssembly."
-      : availableCandidates + " textura(s) disponíveis no perfil FPS; o Balanceado manterá estas resoluções.";
+      : availableCandidates
+        ? availableCandidates + " textura(s) disponíveis no perfil FPS; o Balanceado manterá estas resoluções."
+        : "Nenhum resize necessário; somente duplicatas internas serão consolidadas.";
+    if (localDuplicateCandidates) description += " " + localDuplicateCandidates + " duplicata(s) interna(s) consolidável(is).";
     registerFix("optimize-ytd", "Otimizar texturas YTD", description);
   }
 }

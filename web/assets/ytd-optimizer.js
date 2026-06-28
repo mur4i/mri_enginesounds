@@ -55,8 +55,8 @@
     const largestSide = Math.max(texture.width, texture.height);
     if (largestSide > effectiveMaxDimension(texture, profile)) return true;
     if (profile.generateMipmaps && texture.mipCount <= 1 && largestSide >= 512) return true;
-    // BC2/BC3 (alpha-capable) podem ser candidatas a downgrade->BC1 se forem opacas;
-    // o WASM faz no-op se não houver ganho (sem re-encode, sem perda).
+    // BC2/BC3 podem virar BC1 sem re-encode quando todos os blocos alpha,
+    // em todos os mipmaps, forem totalmente opacos.
     if (profile.allowDowngrade && (texture.codecFormat === 1 || texture.codecFormat === 2)) return true;
     return false;
   }
@@ -82,7 +82,142 @@
     return width * height * pixelBytes;
   }
 
-  function optimizeTexture(codec, texture, bytes, profile) {
+  function bc3AlphaPalette(a0, a1) {
+    const palette = [a0, a1];
+    if (a0 > a1) {
+      for (let index = 2; index < 8; index += 1) {
+        palette[index] = Math.floor(((8 - index) * a0 + (index - 1) * a1) / 7);
+      }
+    } else {
+      for (let index = 2; index < 6; index += 1) {
+        palette[index] = Math.floor(((6 - index) * a0 + (index - 1) * a1) / 5);
+      }
+      palette[6] = 0;
+      palette[7] = 255;
+    }
+    return palette;
+  }
+
+  function blockAlphaIsOpaque(bytes, offset, codecFormat) {
+    if (codecFormat === 1) {
+      for (let index = 0; index < 8; index += 1) {
+        if (bytes[offset + index] !== 255) return false;
+      }
+      return true;
+    }
+    if (codecFormat !== 2) return false;
+    const palette = bc3AlphaPalette(bytes[offset], bytes[offset + 1]);
+    let indices = 0;
+    for (let index = 0; index < 6; index += 1) {
+      indices += bytes[offset + 2 + index] * (2 ** (index * 8));
+    }
+    for (let pixel = 0; pixel < 16; pixel += 1) {
+      const paletteIndex = Math.floor(indices / (2 ** (pixel * 3))) % 8;
+      if (palette[paletteIndex] !== 255) return false;
+    }
+    return true;
+  }
+
+  function alphaChainIsOpaque(texture, bytes) {
+    let offset = 0;
+    let width = texture.width;
+    let height = texture.height;
+    for (let mip = 0; mip < texture.mipCount; mip += 1) {
+      const blocks = Math.max(1, Math.ceil(width / 4)) * Math.max(1, Math.ceil(height / 4));
+      const mipBytes = blocks * 16;
+      if (offset + mipBytes > bytes.byteLength) return false;
+      for (let block = 0; block < blocks; block += 1) {
+        if (!blockAlphaIsOpaque(bytes, offset + block * 16, texture.codecFormat)) return false;
+      }
+      offset += mipBytes;
+      width = Math.max(1, Math.floor(width / 2));
+      height = Math.max(1, Math.floor(height / 2));
+    }
+    return offset === bytes.byteLength;
+  }
+
+  function writeBc1ColorBlock(source, sourceOffset, target, targetOffset) {
+    const colorOffset = sourceOffset + 8;
+    const c0 = source[colorOffset] | (source[colorOffset + 1] << 8);
+    const c1 = source[colorOffset + 2] | (source[colorOffset + 3] << 8);
+    let indices = (
+      source[colorOffset + 4]
+      | (source[colorOffset + 5] << 8)
+      | (source[colorOffset + 6] << 16)
+      | (source[colorOffset + 7] << 24)
+    ) >>> 0;
+    let out0 = c0;
+    let out1 = c1;
+    if (c0 < c1) {
+      out0 = c1;
+      out1 = c0;
+      indices = (indices ^ 0x55555555) >>> 0;
+    } else if (c0 === c1) {
+      if (c0 > 0) {
+        out1 = c0 - 1;
+        indices = 0;
+      } else {
+        out0 = 1;
+        out1 = 0;
+        indices = 0x55555555;
+      }
+    }
+    target[targetOffset] = out0 & 255;
+    target[targetOffset + 1] = out0 >>> 8;
+    target[targetOffset + 2] = out1 & 255;
+    target[targetOffset + 3] = out1 >>> 8;
+    target[targetOffset + 4] = indices & 255;
+    target[targetOffset + 5] = (indices >>> 8) & 255;
+    target[targetOffset + 6] = (indices >>> 16) & 255;
+    target[targetOffset + 7] = indices >>> 24;
+  }
+
+  function downgradeOpaqueToBc1(texture, bytes) {
+    if (!alphaChainIsOpaque(texture, bytes)) return null;
+    let outputBytes = 0;
+    let width = texture.width;
+    let height = texture.height;
+    for (let mip = 0; mip < texture.mipCount; mip += 1) {
+      outputBytes += levelBytes(width, height, 0);
+      width = Math.max(1, Math.floor(width / 2));
+      height = Math.max(1, Math.floor(height / 2));
+    }
+    const output = new Uint8Array(outputBytes);
+    let sourceOffset = 0;
+    let targetOffset = 0;
+    width = texture.width;
+    height = texture.height;
+    for (let mip = 0; mip < texture.mipCount; mip += 1) {
+      const blocks = Math.max(1, Math.ceil(width / 4)) * Math.max(1, Math.ceil(height / 4));
+      for (let block = 0; block < blocks; block += 1) {
+        writeBc1ColorBlock(bytes, sourceOffset + block * 16, output, targetOffset + block * 8);
+      }
+      sourceOffset += blocks * 16;
+      targetOffset += blocks * 8;
+      width = Math.max(1, Math.floor(width / 2));
+      height = Math.max(1, Math.floor(height / 2));
+    }
+    return {
+      data: output,
+      width: texture.width,
+      height: texture.height,
+      mipCount: texture.mipCount,
+      stride: Math.max(1, Math.ceil(texture.width / 4)) * 8,
+      codecFormat: 0,
+    };
+  }
+
+  async function optimizeTexture(texture, bytes, profile) {
+    const largestSide = Math.max(texture.width, texture.height);
+    const needsResize = largestSide > effectiveMaxDimension(texture, profile);
+    const forceGenerateMipmaps = profile.generateMipmaps && texture.mipCount <= 1 && largestSide >= 512;
+    if (profile.allowDowngrade && (texture.codecFormat === 1 || texture.codecFormat === 2)
+        && !needsResize && !forceGenerateMipmaps) {
+      return downgradeOpaqueToBc1(texture, bytes);
+    }
+    if (!needsResize && !forceGenerateMipmaps) return null;
+
+    const codec = await getCodec();
     const input = codec._malloc(bytes.byteLength);
     if (!input) throw optimizerError("WASM_OOM", "O WebAssembly ficou sem memória ao carregar " + texture.name + ".");
     try {
@@ -96,7 +231,7 @@
         effectiveMaxDimension(texture, profile),
         profile.maxMips || 13,
         profile.quality,
-        profile.allowDowngrade ? 1 : 0,
+        0,
         texture.mipCount,
       );
       if (!output) {
@@ -105,7 +240,7 @@
         throw optimizerError("WASM_CODEC_" + codec._eo_last_error(), "O codec não conseguiu processar " + texture.name + ".");
       }
       const size = codec._eo_last_size();
-      return {
+      const replacement = {
         data: codec.HEAPU8.slice(output, output + size),
         width: codec._eo_last_width(),
         height: codec._eo_last_height(),
@@ -113,6 +248,10 @@
         stride: codec._eo_last_stride(),
         codecFormat: typeof codec._eo_last_format === "function" ? codec._eo_last_format() : texture.codecFormat,
       };
+      if (profile.allowDowngrade && (replacement.codecFormat === 1 || replacement.codecFormat === 2)) {
+        return downgradeOpaqueToBc1(replacement, replacement.data) || replacement;
+      }
+      return replacement;
     } finally {
       codec._eo_release_output();
       codec._free(input);
@@ -176,13 +315,12 @@
       return { buffer: model.source.slice().buffer, changed: false, optimizedTextures: 0, beforeBytes: model.source.byteLength, afterBytes: model.source.byteLength };
     }
 
-    const codec = await getCodec();
     const replacements = new Map();
     for (let index = 0; index < candidates.length; index += 1) {
       const texture = candidates[index];
       if (onProgress) onProgress({ current: index + 1, total: candidates.length, name: texture.name });
       const source = model.graphics.subarray(texture.dataOffset, texture.dataOffset + texture.dataBytes);
-      const replacement = optimizeTexture(codec, texture, source, profile);
+      const replacement = await optimizeTexture(texture, source, profile);
       if (replacement) replacements.set(texture.index, replacement);
     }
     if (!replacements.size && !hasDuplicates) {
